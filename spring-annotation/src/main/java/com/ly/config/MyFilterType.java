@@ -30,6 +30,7 @@ public class MyFilterType implements TypeFilter {
     public boolean match(MetadataReader metadataReader, MetadataReaderFactory metadataReaderFactory) throws IOException {
         //获取当前IOC正在扫描的类的注解信息
         AnnotationMetadata annotationMetadata = metadataReader.getAnnotationMetadata();
+
         //获取当前IOC正在扫描类的类信息（如类型，实现的接口啊,类名，父类名，子类名）
         ClassMetadata metadata = metadataReader.getClassMetadata();
         String[] interfaceNames = metadata.getInterfaceNames();

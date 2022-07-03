@@ -27,5 +27,13 @@
             <version>4.12</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- 高版本的JDK 不支持@PostConstruct 和 @PreDestroy，需要添加依赖 -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
+        </dependency>
+
     </dependencies>
 </project>
