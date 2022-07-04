@@ -3,10 +3,8 @@ package test;
 import com.ly.bean.Color;
 import com.ly.bean.ColorFactoryBean;
 import com.ly.bean.Person;
-import com.ly.config.MainConfigLifeCycle;
-import com.ly.config.MainConfiguration2;
-import com.ly.config.MainConfiguration3;
-import com.ly.config.MainConfiguration4;
+import com.ly.config.*;
+import com.ly.service.BookService;
 import org.junit.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -113,5 +111,39 @@ public class IOCTest {
         //applicationContext.getBean("dog");
         //手动销毁IOC容器
         applicationContext.close();
+    }
+
+    @Test
+    public void testPropertyValues() throws Exception {
+        //只有子类才有close方法
+        AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext(MainConfigOfPropertyValues.class);
+
+        //获通过IOC容器的环境变量获取配置文件数据
+        String rickName = applicationContext.getEnvironment().getProperty("person.rickName");
+        System.out.println(rickName);
+
+        System.out.println(applicationContext.getBean("onePerson"));
+
+
+        String[] names = applicationContext.getBeanDefinitionNames();
+        for (String name : names) {
+            System.out.println(name);
+        }
+    }
+
+    @Test
+    public void testAutowire() throws Exception {
+        //只有子类才有close方法
+        AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext(MainConfigOfAutowire.class);
+
+        BookService bookService = (BookService) applicationContext.getBean("bookService");
+        System.out.println(bookService.getBookDao());
+
+        System.out.println(applicationContext.getBean("bookDao2"));
+        System.out.println(applicationContext.getBean("bookDao"));
+        String[] names = applicationContext.getBeanDefinitionNames();
+        for (String name : names) {
+            System.out.println(name);
+        }
     }
 }

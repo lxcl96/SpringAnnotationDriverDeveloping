@@ -1,4 +1,6 @@
-# 1、@ComponentScan 注解
+# 一：IOC容器的组件注册
+
+## 1、@ComponentScan 注解
 
 ```java
 package com.ly.config;
@@ -180,7 +182,7 @@ public class MyFilterType implements TypeFilter {
 
 ******
 
-# 2、@ComponentScans 注解
+## 2、@ComponentScans 注解
 
 ​	因为在Jdk1.8下``@ComponentScan`可以重复写
 
@@ -207,7 +209,7 @@ class MyConfiguration {...}
 
 
 
-# 3、@Scope 
+## 3、@Scope 
 
 用于配置单实例或多实例
 
@@ -294,7 +296,7 @@ public class MainConfiguration2 {
     }
 ```
 
-# 4、@Lazy
+## 4、@Lazy
 
 ==配置类里，xml配置文件等IOC启动时扫描到了就把组件（bean）注册到IOC容器中了如：zs，ls，ww，zl等，但是IOC中是有这个类型并没有创建这个对象。可以理解为指向空指针。==
 
@@ -313,7 +315,7 @@ public Person getPerson(){
 }
 ```
 
-# 5、@Conditional
+## 5、@Conditional
 
 ==此注解可以用于类或方法上==
 
@@ -452,11 +454,11 @@ applicationContext.getEnvironment().getProperty("os.name");
 
 ![image-20220702165549788](.\img\image-20220702165549788.png)
 
-# 6、@import
+## 6、@import
 
 快速给容器中导入一个组件
 
-## 用法1：直接导入类
+### 用法1：直接导入类
 
 ```java
 /**
@@ -473,7 +475,7 @@ public class MainConfiguration4 {
 }
 ```
 
-## 用法2：根据ImportSelector导入
+### 用法2：根据ImportSelector导入
 
 ***自定义导入选择器：MyImportSelector***
 
@@ -571,7 +573,7 @@ public void testImport() {
     }
 }
 ```
-## 用法3：ImportBeanDefinitionRegistrar
+### 用法3：ImportBeanDefinitionRegistrar
 
 使用该`ImportBeanDefinitionRegistrar`接口内部方法`registerBeanDefinitions`，自己使用`BeanDefinitionRegistry`给容器添加/注册组件(不是IOC调用注册机注册)
 
@@ -656,7 +658,7 @@ public class MainConfiguration4 {
 
 
 
-# 7、@FactoryBean
+## 7、@FactoryBean
 
 有时候创建一个类A需要依赖创建很多其他的类，但是我们只需要A类，不需要知道其创建过程时就选择`@FactoryBean`即工厂Bean。（也就是创建的Bean和返回的 Bean不是同一个类型的。）
 
@@ -768,7 +770,9 @@ public void testFactoryBean() throws Exception {
 }
 ```
 
-# 8、Bean生命周期
+# 二：IOC容器的Bean生命周期
+
+## 8、Bean生命周期
 
 Bean的生命周期：
  * bean创建--初始化---销毁的过程
@@ -785,9 +789,9 @@ Bean的生命周期：
 
  * IOC容器不会管理Bean，容器关闭时不会自动调用销毁方法。所以你只能手动调用destroy方法（多实例）
 
-## ***Bean初始化和销毁的四种方法：***
+### ***Bean初始化和销毁的四种方法：***
 
-### 单实例/多实例下Bean生命过程
+#### 单实例/多实例下Bean生命过程
 
  * 构造（创建）
 
@@ -807,7 +811,7 @@ Bean的生命周期：
 
    `多实例：IOC容器不会管理Bean，容器关闭时不会自动调用销毁方法。所以你只能手动调用destroy方法`
 
-### I：通过@Bean 指定`init`和`destroy`方法
+#### I：通过@Bean 指定`init`和`destroy`方法
 
 ==单实例/多实例下Bean生命过程 同上↑==
 
@@ -901,7 +905,7 @@ public void testBeanLifeCycle() throws Exception {
 }
 ```
 
-### II：InitializingBean接口实现初始化方法，DisposableBean接口实现销毁方法
+#### II：InitializingBean接口实现初始化方法，DisposableBean接口实现销毁方法
 
 ==单实例/多实例下Bean生命过程 同上↑==
 
@@ -993,7 +997,7 @@ public class MainConfigLifeCycle {
 }
 ```
 
-### III ： 使用JSR250规范中注解：(jdk1.8之后没有了，需要添加依赖)
+#### III ： 使用JSR250规范中注解：(jdk1.8之后没有了，需要添加依赖)
 
 ==单实例/多实例下Bean生命过程 同上↑==
 
@@ -1114,7 +1118,7 @@ public class MainConfigLifeCycle {
 }
 ```
 
-### IV：BeanPostProcessor：所有Bean的后置处理器
+#### IV：BeanPostProcessor：所有Bean的后置处理器
 
 ***对于要注册所有Bean（包括Spring的）都会执行后置处理器，都会执行***
 
@@ -1255,7 +1259,7 @@ public class MainConfigLifeCycle {
 >
 > ***解决方法：可以使用@Lazy懒加载***
 
-### 总结：
+#### 总结：
 
 ​	I，II，III，IV中每个方法的调用步骤：
 
@@ -1296,7 +1300,7 @@ if (mbd == null || !mbd.isSynthetic()) {
 
 ```
 
-### 额外知识：BeanPostProcessor应用
+#### 额外知识：BeanPostProcessor应用
 
 ***1：在任一Bean中获取IOC容器获取其他属性（后置处理器）***
 
@@ -1376,41 +1380,275 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 
 ![image-20220703171719438](.\img\image-20220703171719438.png)
 
+# 三：IOC容器属性赋值
+
+## 9、@Value 属性赋值
+
+​	对基础属性进行赋值
+
+### 赋值用法1：基本数值赋值
+
+### 赋值用法2：可以写SpringEL即Spring表达式 #{表达式}
+
+```java
+public class Person {
+
+    /**
+     * 使用@Value赋值：
+     *    1、基本数值
+     *    2、可以写SpringEL即Spring表达式 #{}
+     *    3、
+     *    4、
+     */
+    @Value("张三") //基本数值赋值
+    private String name;
+    @Value("#{20-2}") //SpringEL表达式赋值
+    private Integer age;
+    
+    public Person() {
+    }
+}
+```
+
+### 赋值用法3：引入外部配置文件，使用${key}赋值
+
+前提：此方法和Spring的xml配置文件引入外部文件，${key}赋值完全一样
+
+```xml
+<!-- xml配置文件-->
+<context:property-placeholder location="classpath:person.properties" />
+<bean id="person" class="com.ly.bean.Person">
+    <property name="name" value="张三" />
+    <property name="age" value="18" />
+    <!-- ${key}引用-->
+    <property name="rickName" value="${person.rickName}" />
+</bean>
+```
+
+#### 借助`@PropertySource`注解，实现外部文件引入
+
+​	一般都在配置类上引入配置文件！
+
+***配置类：MainConfigOfPropertyValues.java***
+
+```java
+
+/**
+ * 注解@PropertySource
+ *     等价于xml中引入外部文件： <context:property-placeholder location="classpath:person.properties" />
+ *    参数：
+ *      name:名称，没啥用。IOC容器中也不回有这个名字的对象，取值还是直接properties文件中的key ${key}
+ *      value:配置文件数据classpath类路径 或file文件路径
+ *      encoding：配置文件编码
+ *      ignoreResourceNotFound：没找到配置文件是否忽略？默认false，会报错
+ *      factory：待定
+ */
+@PropertySource(name = "personProperty",value = {"classpath:person.properties"},encoding = "utf-8")
+@Configuration
+public class MainConfigOfPropertyValues {
+
+    @Bean("onePerson")
+    public Person getPerson(){
+        return new Person();
+    }
+}
+```
+
+***``@Value`使用配置文件***
+
+```java
+public class Person {
+
+    /**
+     * 使用@Value赋值：
+     *    1、基本数值
+     *    2、可以写SpringEL即Spring表达式 #{}
+     *    3、使用${}取出配置文件中[properties文件]的值（也就是IOC容器中环境Environment变量的值）
+     *    4、
+     */
+    @Value("张三")
+    private String name;
+    @Value("#{20-2}")
+    private Integer age;
+    @Value("${person.rickName}") //外部文件引入方法，直接配置文件的key即可
+    private String rickName;
+    public Person() {
+    }
+}
+```
+
+> 注：`@PropertySources()` 和`@PropertySource()`的关系与`@ComponentScan`和`@ComponentScan`关系一样
+
+### 赋值用法4：第三种方法的扩展
+
+​	因为引入的**外部配置文件**均会被加载到IOC容器的Environment环境变量中，所以也可以由此获取。
+
+```java
+//获通过IOC容器的环境变量获取配置文件数据 【key就是配置文件的key，不变】
+String rickName = applicationContext.getEnvironment().getProperty("person.rickName");
+System.out.println(rickName);
+```
 
 
 
+# 四：IOC容器的自动装配
+
+## 10、@Autowire 自动注入
+
+***@Autowire源码：***
+
+```java
+@Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface Autowired {
+    boolean required() default true;//默认一定要找到，如果找不到就会报错
+}
+```
+
+***自动装配***：Spring利用依赖注入(DI)，完成对IOC容器中各个组件的依赖关系赋值。
+
+> 将容器中的组件自动注入到相关依赖中，前提是IOC容器中有
+
+@Autowire自动注入规则：
+
++ 优先按照`类型(byType)`去容器中查找已存在的组件
+
+  + 如果找到多个`同类型`的，就按照`名字(byName)`找（名字就是你定义时取得）
+
+    ```java
+    @Autowired
+    private BookDao bookDao; //如果是afafa，就找IOC容器中名afafa 类型为BookDao的组件
+    ```
+
+  + 如果没找到，就报错（默认`required=true`）
+
+  > `@Autowire`注解完成自动装配的底层代码就是`AutowiredAnnotationBeanPostProcessor.java`代码，不难看出这又是PostProcessor后置处理器。
+
+## 11、@Qualifier 需要代培@Autowire使用
+
+***@Qualifier源码：***
+
+```java
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Inherited
+@Documented
+public @interface Qualifier {
+    String value() default "";//组件名字
+}
+```
+
+按照指定名称实现自动注入
+
+```java
+@Qualifier("bookDao1")
+@Autowired(required=false)
+private BookDao bookDao;
+```
 
 
 
+## 12、@Primary  一般和@Autowire搭配使用
+
+如`BookDao`这个类型的组件在IOC容器中有多个，使用这个注解可以让Spring进行自动装配的时候，默认选择`@Primary`注解标注的Bean组件
+
+***@Primary源码：***
+
+```java
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface Primary {
+
+}
+```
+
+***例子：***
+
+配置类：MainConfigOfAutowire.java
+
+```java
+@ComponentScan({"com.ly.controller","com.ly.dao","com.ly.service"})//BookDao 有注解@Repository
+@Configuration
+public class MainConfigOfAutowire {
+    
+    @Primary //默认首选bookDao2这个组件
+    @Bean("bookDao2")
+    public BookDao getBookDao(){
+        return new BookDao();
+    }
+}
+```
+
+依赖类：BookService.java
+
+```java
+@Primary //优先选择bookService，当前这个组件
+@Service
+public class BookService {
+    //@Qualifier //有注解@Primary就没必要指定组件了
+    @Autowired
+    private BookDao bookDao; //优先选择bookDao2这个组件
+}
+```
+
+***@Qualifier和@Primary的优先级***
+
+​	有`@Qualifier`注解的先找满足这个注解的，如果没有`@Qualifier`就首选`@Primary`注解的。
+
+## 13、@Resourece(JSR250) –Java规范
+
+​	可以和@Autowire一样实现自动装配，默认是按照组件(如：bookDao)名称进行装配的。当然你可以指定name（`@Resource(name="bookDao2")`）进行装配。
+
+***先根据名字找，如果IOC容器中没有这个属性名，再根据类型找。如果没有这个属性名（根据类型找时），@Primary就会生效***
+
+缺点：
+
++ `无法和Spring注解@Primary组合使用（@Primary会失效）`
++ `必须找到，如果找不到就会报错（没有@Autowire的reqired属性）`
+
+```java
+public class BookService {
+
+    @Resource
+    //Qualifier
+    //@Autowired
+    private BookDao bookDao;
+}
+```
 
 
 
+## 14、@Inject(JSR330)  –Java规范
+
+​	==使用和@Autowire完全一样，就是没有`required`属性，即默认没找到就会报错==
+
+使用需要先导入依赖：
+
+```xml
+<!-- https://mvnrepository.com/artifact/javax.inject/javax.inject -->
+<dependency>
+    <groupId>javax.inject</groupId>
+    <artifactId>javax.inject</artifactId>
+    <version>1</version>
+</dependency>
+
+```
+
+***源码：***
+
+```java
+@Target({ElementType.METHOD, ElementType.CONSTRUCTOR, ElementType.FIELD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface Inject {
+}
+```
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+## 15、
 
 
 
