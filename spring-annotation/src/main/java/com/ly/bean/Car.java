@@ -1,5 +1,7 @@
 package com.ly.bean;
 
+import org.springframework.stereotype.Component;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -9,6 +11,7 @@ import java.util.Date;
  * Date：2022/7/3
  * Description：
  */
+@Component
 public class Car {
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
 

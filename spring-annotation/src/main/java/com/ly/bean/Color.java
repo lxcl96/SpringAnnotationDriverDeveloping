@@ -1,5 +1,7 @@
 package com.ly.bean;
 
+import org.springframework.context.ApplicationContext;
+
 /**
  * FileName：Color.java
  * Author：Ly
@@ -7,4 +9,20 @@ package com.ly.bean;
  * Description：
  */
 public class Color {
+    private Car car;
+
+    public Car getCar() {
+        return car;
+    }
+
+    public void setCar(Car car) {
+        this.car = car;
+    }
+
+    @Override
+    public String toString() {
+        return "Color{" +
+                "car=" + car +
+                '}';
+    }
 }

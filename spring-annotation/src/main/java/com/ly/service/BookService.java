@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import javax.inject.Inject;
 
 /**
  * FileName:BookService.class
@@ -19,10 +18,10 @@ import javax.inject.Inject;
 @Service
 public class BookService {
 
-    @Inject
+    //@Inject
     //@Resource()
     //Qualifier
-    //@Autowired
+    @Autowired
     private BookDao bookDao;
 
     public BookDao getBookDao() {

@@ -1498,6 +1498,7 @@ System.out.println(rickName);
 ***@Autowire源码：***
 
 ```java
+//可以放在构造器、方法、参数，属性/字段，注解上
 @Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
@@ -1648,7 +1649,195 @@ public @interface Inject {
 
 
 
-## 15、
+## 15、@Autowire的其他用法
+
+==***只要IOC容器扫描到，@Bean等，那么方法的参数可以不写@Autowire（仅限于有唯一参构造器、很多方法上），这种情况一般都是不写@Autowire***==
+
+#### ①、标注在方法上，一般放在`setxxx()`上
+
++ `@Autowire`标注在方法上，方法有形参时，==***Spring容器创建当前对象Boss时***就会调用被注解Autowire标注的方法==，完成赋值
+
++ 方法使用的参数，自定义类型的值从IOC容器中取,==如果IOC容器中没有，就会报错。当然可以把*required=false*==
+
+  ***通用属性：***
+
++ 其余就和标注在属性上一样了，配合`@Primary`、`@qualifier`使用。
+
++ 组件IOC容器内匹配顺序：
+
+  + 优先按照`类型(byType)`去容器中查找已存在的组件
+
+  + 如果找到多个`同类型`的，就按照`名字(byName)`找（名字就是方法形参）
+
+```java
+@Component
+public class Boss {
+
+    //@Autowired
+    private Car car;
+
+
+    public Car getCar() {
+        return car;
+    }
+
+    @Autowired//也可以直接标在形参上，二者选其一（都标不报错）
+    public void setCar(@Autowired Car car) {
+        this.car = car;
+    }
+    
+    
+}
+```
+
+#### ②、标注在构造器上（其实就是set方法）
+
+如果不标注的话，IOC容器默认创建无参构造器的那个；如果有参构造器被`@Autowire`标注，则此时IOC容器默认使用有参构造器创建，然后从IOC容器中找到组件，对象名就是形参名。
+
+==如果类中仅有一个有参数构造器，那么*@Autowire*可以省略（因为创建这个对象只能用此构造器）。类似于隐式标记了*@Autowire*注解，和有这个注解的效果完全一样（包括配合*@Primary*等使用）==
+
+***通用属性：***同①
+
+```java
+public class Boss {
+
+    //@Autowired
+    private Car car;
+	
+    public Boss() {
+    }
+    
+    //如果只有一个有参构造器，则@Autowire可以省略
+    @Autowired//也可以直接标在形参上，二者选其一（都标不报错）
+    public Boss(@Autowired Car car) {
+        System.out.println("只有有参构造器，但是设置了自动注入，所以不会报错！");
+        this.car = car;
+    }
+
+    //@Autowired
+    public void setCar(Car car) {
+        this.car = car;
+    }
+    ...
+}
+```
+
+> 如果有参数构造器，和无参数构造器都被`@Autowire`标注，会报错的
+>
+
+#### ③、标注在方法的形参上
+
+```java
+@Component
+public class Boss {
+
+    //@Autowired
+    private Car car;
+
+    public Boss() {
+    }
+
+    @Autowired//两个位置都标记不报错
+    public Boss(@Autowired Car car) {
+        System.out.println("只有有参构造器，但是设置了自动注入，所以不会报错！");
+        this.car = car;
+    }
+
+    //@Autowired
+    public void setCar(@Autowired Car car) {
+        this.car = car;
+    }
+    ...
+}
+```
+
+
+
+#### ④、标注在方法上，配合@Bean使用
+
+如：Color类也有car属性
+
+```java
+public class Color {
+    private Car car;
+
+    public Car getCar() {
+        return car;
+    }
+
+    public void setCar(Car car) {
+        this.car = car;
+    }
+}
+```
+
+，但是Color是通过配置类中，@Bean方法的（那么此时怎么注入car呢？）
+
+> 这种情况其实就是有 唯一构造器 的情形
+
+```java
+  @Bean("color")//@Autowire可以不写
+    public Color getColor(//@Autowired 
+                                      Car car) {
+        Color color = new Color(); 
+        color.setCar(car);
+        //只是会自定注入形参，并不是和”@Autowire标注在set方法上，创建对象时会自动调用set方法“一样，记住了。
+        return color;
+    }
+```
+
+
+
+#### ⑤、自定义组件通过@Autowire，使用IOC容器
+
+==想使用IOC哪个组件，只需要先其对应xxxAware接口即可，每个都是其对应的xxxAwareProcessor（是xxxAware的实现类）处理的。==
+
+![image-20220706151151853](.\img\image-20220706151151853.png)
+
++ 如果想使用ApplicationContext，则只需要该类实现ApplicationContextAware接口即可
++ 如果想使用BeanFactory，则只需要该类实现BeanFactoryAware接口即可
++ …
+
+如：ApplicationContextAware
+
+```java
+//实现ApplicationContextAware（xxxAware）接口
+public class Tiger implements ApplicationContextAware {
+    private ApplicationContext context;
+	//IOC创建当前对象，会自动调用setApplicationContext（setxxx）方法进行注入
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.context = applicationContext;
+    }
+    ...
+}
+```
+
+> ***注：***
+>
+> 当然因为有@Autowire的规则，你也可以直接标注获取IOC容器内容
+>
+> ```java
+> @Bean("tiger")
+> //前提Tiger有此类型构造器
+> public Tiger getOne(ApplicationContext context) {
+>     return new Tiger(context);
+> }
+> ```
+
+## @Profile
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
