@@ -1825,31 +1825,537 @@ public class Tiger implements ApplicationContextAware {
 > }
 > ```
 
-## @Profile
+## 16、@Profile  满足一定环境Environment才会注册组件到IOC容器中
+
+***源码：***
+
+```java
+//可用与类上，方法上
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Conditional(ProfileCondition.class)
+public @interface Profile {
+
+   /**
+    * The set of profiles for which the annotated component should be registered.
+    * 如果运行时不指定环境（注解值），默认加载没有此注解的和注解值为“default”的
+    * 如果运行时指定环境（注解值），只会加载没有没有被注解的组件，以及注解值等于指定值的组件
+    */
+   String[] value();
+
+}
+```
+
+ 注解@Profile：
+ *      Spring为我们提供的可以根据当前环境，动态的激活和切换一系列bean组件的功能。
+ *      应用：如数据源Bean，日志Bean切换（开发环境，测试环境，生产环境）
+
+举例：以数据源为例
+
+ *      @Profile:指定组件在哪个环境的情况下才能被注册到容器中，默认不指定，所有组件均注册到IOC容器中
+
+***配置类：***
+
+```java
+package com.ly.config;
+
+/**
+ * FileName:MainConfigurationOfProfile.class
+ * Author:ly
+ * Date:2022/7/6
+ * Description:Profile使用，以数据源为例
+ */
+
+
+import com.ly.bean.Flour;
+import com.mchange.v2.c3p0.ComboPooledDataSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.EmbeddedValueResolverAware;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.util.StringValueResolver;
+import java.beans.PropertyVetoException;
+import javax.sql.DataSource;
+/**
+ *  注解@Profile：
+ *      Spring为我们提供的可以根据当前环境，动态的激活和切换一系列bean组件的功能。
+ *
+ *  应用：如数据源Bean，日志Bean切换（开发环境，测试环境，生产环境）
+ *  举例：以数据源为例
+ *
+ * @Profile:指定组件在哪个环境的情况下才能被注册到容器中，默认不指定，所有组件均注册到IOC容器中
+ */
+@SuppressWarnings({"all"})
+@Configuration
+@PropertySource(value = {"classpath:jdbc.properties"})
+public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
+    //花式取值
+    @Value("${dev.driver}")
+    private String driver;
+    //spring值解析器，用于解析占位符#{}和${}
+    private StringValueResolver valueResolver;
+
+
+    @Profile("developing")
+    @Bean("dev")
+    //花式取值
+    public DataSource getDevDataSource(@Value("${dev.url}") String url) throws PropertyVetoException {
+
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        dataSource.setDriverClass(driver);
+        dataSource.setJdbcUrl(url);
+        dataSource.setUser(valueResolver.resolveStringValue("${dev.user}"));
+        dataSource.setPassword("{dev.password}");
+        return dataSource;
+    }
+
+    @Profile("testing")
+    @Bean("test")
+    public DataSource getTestDataSource() throws PropertyVetoException {
+
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        dataSource.setDriverClass("${test.driver}");
+        dataSource.setJdbcUrl("${test.url}");
+        dataSource.setUser("${test.user}");
+        dataSource.setPassword("{test.password}");
+        return dataSource;
+    }
+
+    @Profile("production")
+    @Bean("production")
+    public DataSource getProductionDataSource() throws PropertyVetoException {
+
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        dataSource.setDriverClass("${production.driver}");
+        dataSource.setJdbcUrl("${production.url}");
+        dataSource.setUser("${production.user}");
+        dataSource.setPassword("{production.password}");
+        return dataSource;
+    }
+
+    @Profile("default") //不标记，或者标记default的默认都会被注册到IOC容器中。
+    // 但是如果切换了环境，则default的bean组件不会被注册到IOC容器中，不写@Profile注解的Bean总是会被注册到IOC容器中
+    @Bean("defaultDatasource")
+    public DataSource getDefaultDatasource() throws PropertyVetoException {
+
+        return null;
+    }
+    @Override
+    public void setEmbeddedValueResolver(StringValueResolver resolver) {
+        this.valueResolver = resolver;
+    }
+
+    @Bean("flour")
+    public Flour getOne() {
+        return new Flour();
+    }
+}
+```
 
 
 
+### - 如何指定运行环境的@Profile值呢？（如何切换指定环境？）
 
 
 
+#### ①、启动时添加命令行参数方式:`-Dspring.profiles.active=xxx`
+
+如：
+
++ `-Dspring.profiles.active=developing`
+
++ ``-Dspring.profiles.active=test`
+
+***IDEA启动时添加VM参数：***
+
+![image-20220707090024104](.\img\image-20220707090024104.png)
 
 
 
+#### ②、代码的方式指定运行环境
+
+因为如果直接通过有参构造器获取IOC容器，那么再设置环境不会生效的。所以必须先由无参构造器获取IOC容器，然后再设置环境。指定profile环境后，后面的代码和有参构造器的完全一样即可
+
+> 参考servlet中先获取参数再设置字符集失效的情形
+>
+> 有参构造器代码：
+>
+> ```java
+> public AnnotationConfigApplicationContext(Class<?>... componentClasses) {
+>    this();
+>    register(componentClasses);
+>    refresh();
+> }
+> ```
 
 
 
+***代码如下：***
+
+```java
+/**
+ * 切换运行环境到 @Profile("xxx")对应的环境xxx
+ * 方法1：启动命令行参数加上：-Dspring.profiles.active=xxx 
+ *		如：-Dspring.profiles.active=developing
+ * 方法2：使用代码的方法，需要使用IOC容器的无参数构造器
+ *       指定profile环境后，后面的代码和有参构造器的完全一样即可
+ */
+@Test
+public void testProfileByCode(){
+    AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+    //设置profile环境，必须注册前指定
+    applicationContext.getEnvironment().setActiveProfiles("developing","testing");
+    //遵循有参构造器的代码
+    applicationContext.register(MainConfigurationOfProfile.class);
+    applicationContext.refresh();
+
+    String[] names = applicationContext.getBeanDefinitionNames();
+    for (String name : names) {
+        System.out.println(name);
+    }
+
+    applicationContext.close();
+}
+```
+
+# 五：AOP注解实现的简单测试
+
+AOP：是指在程序运行时，将某段代码动态的切入到指定方法指定位置进行运行的编程方式。
+
+AOP底层原理：动态代理
+
+***AOP的注解实现：***
+
+1. 导入AOP依赖
+
+   ```xml
+   <dependency>
+       <groupId>org.springframework</groupId>
+       <artifactId>spring-aspects</artifactId>
+       <version>5.3.21</version>
+   </dependency>
+   ```
+
+2. 定义一个业务逻辑类 `MathCalculator.java`，在业务逻辑运行时将日志进行打印（方法前后及异常捕获等等）
+
+   ```java
+   package com.ly.aop;
+   
+   public class MathCalculator {
+       public int div(int i,int j) {
+           //部分代码不放这里是为了降低耦合度
+           return i/j;
+       }
+   }
+   ```
+
+3. 定义日志切面类`LogAspects.java`,即增强代码需要动态感知`MathCalculator#div`方法运行情况，并且做出相应处理
+
+   ```java
+   //见4
+   ```
+
+   > 通知方法
+   >
+   > 1. 前置通知  `@Before` 对应要通知方法为 `LogAspects#logStart`
+   > 2. 后置/最终通知  `@After` 对应要通知方法为 `LogAspects#logStop`。无论方法执行正常还是异常，最后总是会调用类似于`finally`
+   > 3. 环绕通知  `@Around` 动态代理，手动推进目标方法运行(joinPoint.proceed())
+   > 4. 返回通知  `@AfterReturning` 对应要通知方法为 `LogAspects#logReturn`
+   > 5. 异常通知  `@AfterThrowing` 对应要通知方法为 `LogAspects#logException`
+
+4. 给切面类的目标方法标注何时何地运行（通知注解） 
+
+   ***切入点表达式必须是 execution() 这样的或者或者是自己定义了公共的切入点表达式函数时直接写函数名（不用写execution了），重点看参数***
+
+   > 看 异常通知
+
+   ==***JoinPoint做形参必须放在第一位***==
+
+   ```java
+   package com.ly.aop;
+   
+   import org.aspectj.lang.JoinPoint;
+   import org.aspectj.lang.annotation.*;
+   
+   import java.util.Arrays;
+   
+   /**
+    * FileName:LogAspects.class
+    * Author:ly
+    * Date:2022/7/7
+    * Description:
+    */
+   @Aspect//告诉Spring当前类是一个切面类
+   public class LogAspects {
+       /**
+        * 抽取公共的切入点表达式，不需要用具体方法
+        *      如果本类引用，直接调用方法即可（注意加引号）。 如：@AfterReturning("pointCut()")
+        *      如果是外部类引用，则需要写全类名的方法调用（注意加引号）  如：@AfterThrowing("* com.ly.aop.LogAspects.pointCut()")
+        */
+       @Pointcut("execution(* com.ly.aop.MathCalculator.div(..))")
+       public void pointCut(){};
+   
+       //目标方法运行前切入，需要制定切入点表达式
+       @Before("execution(public int com.ly.aop.MathCalculator.div(int,int))")
+       //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+       public void logStart(JoinPoint joinPoint) {
+   //        System.out.println(joinPoint.getKind());//method-execution
+   //        System.out.println(joinPoint.getSignature());//获取签名int com.ly.aop.MathCalculator.div(int,int)
+   //        System.out.println(joinPoint.getSignature().getDeclaringType());//返回类类型class com.ly.aop.MathCalculator
+   //        System.out.println(joinPoint.getSignature().getDeclaringTypeName());//返回类名com.ly.aop.MathCalculator
+   //        System.out.println(joinPoint.getSignature().getModifiers());//返回修饰符 1
+   //        System.out.println(joinPoint.getSignature().getName());//返回方法名 div
+   //        System.out.println(joinPoint.getSourceLocation());
+   //        System.out.println(joinPoint.getSourceLocation().getFileName());
+   //        System.out.println(joinPoint.getSourceLocation().getLine());
+   //        System.out.println(joinPoint.getSourceLocation().getWithinType());// class com.ly.aop.MathCalculator
+   //        System.out.println(joinPoint.getStaticPart());//execution(int com.ly.aop.MathCalculator.div(int,int))
+   //        System.out.println(joinPoint.toLongString());//execution(public int com.ly.aop.MathCalculator.div(int,int))
+   //        System.out.println(joinPoint.toShortString());//execution(MathCalculator.div(..))
+   //        System.out.println(Arrays.toString(joinPoint.getArgs()));//[2, 1]
+   //        System.out.println(joinPoint.getThis());//com.ly.aop.MathCalculator@2a54a73f
+   //        System.out.println(joinPoint.getTarget());//com.ly.aop.MathCalculator@2a54a73f
+   
+           System.out.println(joinPoint.getSignature().getName() + "运行。。。参数列表是：{" + Arrays.toString(joinPoint.getArgs()) + "}");
+       }
+   
+       @After("execution(* com.ly.aop.MathCalculator.*(..))")
+       public void logStop(JoinPoint joinPoint) {
+           System.out.println(joinPoint.getSignature().getName() + "结束。。。");
+       }
+   //*****************切入点表达式调用函数的不用写execution了
+       @AfterReturning(value = "pointCut()",returning = "ret")
+       //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+       public void logReturn(JoinPoint joinPoint,Object ret) {
+           System.out.println(joinPoint.getSignature().getName() + "正常返回。。。运行结果：{" + ret + "}");
+       }
+   //*****************切入点表达式调用函数的不用写execution了
+       @AfterThrowing(value = "com.ly.aop.LogAspects.pointCut()",throwing = "exception")
+       //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入 
+       //JoinPoint 参数一定要放在第一位
+       public void logException(JoinPoint joinPoint,Exception exception) {
+           System.out.println(joinPoint.getSignature().getName() + "运行异常。。。异常信息：{}");
+       }
+   }
+   
+   ```
+
+5. 将切面类和业务逻辑类（目标方法所在类）都加入到容器中
+
+   ```java
+   package com.ly.config;
+   
+   import com.ly.aop.LogAspects;
+   import com.ly.aop.MathCalculator;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   import org.springframework.context.annotation.EnableAspectJAutoProxy;
+   
+   /**
+    * FileName:MainConfigurationOfAOP.class
+    * Author:ly
+    * Date:2022/7/7
+    * Description:AOP的注解实现
+    */
+   @EnableAspectJAutoProxy//必须启用AOP的自动代理
+   @Configuration
+   public class MainConfigurationOfAOP {
+   
+   
+       @Bean//业务逻辑类加入到容器中
+       public MathCalculator calculator(){
+           return new MathCalculator();
+       }
+   
+   
+       @Bean//切面类加入到容器中
+       public LogAspects logAspects() {
+           return new LogAspects();
+       }
+   }
+   ```
+
+6. 必须告诉Spring哪个类是切面类==（切面类添加注解 `@Aspect`）==
+
+7. 必须启用SpringAOP自动代理 ==（配置类使用注解 `@EnableAspectJAutoProxy`）==
+
+   > 等同于xml配置文件的：
+   >
+   > ```xml
+   > <!-- AOP的自动代理-->
+   > <aop:aspectj-autoproxy />
+   > ```
+
+8. 获取连接点
+
+   ```java
+   //目标方法运行前切入，需要制定切入点表达式
+   @Before("execution(public int com.ly.aop.MathCalculator.div(int,int))")
+   //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+   public void logStart(JoinPoint joinPoint) {
+       System.out.println(joinPoint.getKind());//method-execution
+       System.out.println(joinPoint.getSignature());//获取签名int com.ly.aop.MathCalculator.div(int,int)
+       System.out.println(joinPoint.getSignature().getDeclaringType());//返回类类型class com.ly.aop.MathCalculator
+       System.out.println(joinPoint.getSignature().getDeclaringTypeName());//返回类名com.ly.aop.MathCalculator
+       System.out.println(joinPoint.getSignature().getModifiers());//返回修饰符 1
+       System.out.println(joinPoint.getSignature().getName());//返回方法名 div
+       System.out.println(joinPoint.getSourceLocation());
+       //System.out.println(joinPoint.getSourceLocation().getFileName());
+       //System.out.println(joinPoint.getSourceLocation().getLine());
+       System.out.println(joinPoint.getSourceLocation().getWithinType());// class com.ly.aop.MathCalculator
+       System.out.println(joinPoint.getStaticPart());//execution(int com.ly.aop.MathCalculator.div(int,int))
+       System.out.println(joinPoint.toLongString());//execution(public int com.ly.aop.MathCalculator.div(int,int))
+       System.out.println(joinPoint.toShortString());//execution(MathCalculator.div(..))
+       System.out.println(Arrays.toString(joinPoint.getArgs()));//[2, 1]
+       System.out.println(joinPoint.getThis());//com.ly.aop.MathCalculator@2a54a73f
+       System.out.println(joinPoint.getTarget());//com.ly.aop.MathCalculator@2a54a73f
+   
+       System.out.println(joinPoint.getSignature().getName() + "运行。。。参数列表是：{" + Arrays.toString(joinPoint.getArgs()) + "}");
+   }
+   ```
+
+9. 获取返回值
+
+   ```java
+   @AfterReturning(value = "pointCut()",returning = "ret")
+   //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+   public void logReturn(Object ret) {
+       System.out.println("除法正常返回。。。运行结果：{" + ret + "}");
+   }
+   ```
+
+10. 获取异常信息
+
+    ```java
+    @AfterThrowing(value = "execution(* com.ly.aop.LogAspects.pointCut())",throwing = "except")
+    //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+    public void logException(Throwable except) {
+        System.out.println("除法运行异常。。。异常信息：{}");
+    }
+    ```
 
 
 
+# 六：AOP的原理
 
+​	重点是看`@EnableAspectJAutoProxy`给IOC容器中注册了什么组件？这个组件什么时候工作？这个组件的功能是什么？
 
+如`@EnableAspectJAutoProxy`：
 
++ 给容器中注入了 
 
+  ```java
+  /*
+  	名称为：org.springframework.aop.config.internalAutoProxyCreator
+  	类型为：AnnotationAwareAspectJAutoProxyCreator.class 的组件
+  */
+  ```
 
++ 
 
+如果搞明白这些，以后遇到`@Enablexxx`注解，都是按照这三步来看
 
+## 1、`@EnableAspectJAutoProxy` 开启AOP注解（最重要）
 
+***源码：***
 
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+//给IOC容器导入AspectJAutoProxyRegistrar注册机，利用它自定义给IOC容器注册组件（注册了什么组件？）
+@Import(AspectJAutoProxyRegistrar.class)
+public @interface EnableAspectJAutoProxy {
+
+   boolean proxyTargetClass() default false;
+
+   boolean exposeProxy() default false;
+
+}
+```
+
+> ***`@Import(AspectJAutoProxyRegistrar.class)`的部分源码：***
+>
+> 第一步：注册``org.springframework.aop.config.internalAutoProxyCreator`
+>
+> ```java
+> public void registerBeanDefinitions(
+> AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
+> //顺序1
+> AopConfigUtils.registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry);
+> 	...
+> }
+> //顺序2
+> @Nullable
+>  public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
+>      return registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry, (Object)null);
+>  }
+> //顺序3
+>  @Nullable
+>  public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry, @Nullable Object source) {
+>      return registerOrEscalateApcAsRequired(AnnotationAwareAspectJAutoProxyCreator.class, registry, source);
+>  }
+> 
+> //顺序4  注册 AnnotationAwareAspectJAutoProxyCreator（即启用AOP编程）
+>  private static BeanDefinition registerOrEscalateApcAsRequired(Class<?> cls, BeanDefinitionRegistry registry, @Nullable Object source) {
+> 	...
+>   } else {
+>          RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
+>          beanDefinition.setSource(source);
+>          beanDefinition.getPropertyValues().add("order", -2147483648);
+>          beanDefinition.setRole(2);
+>          registry.registerBeanDefinition("org.springframework.aop.config.internalAutoProxyCreator", beanDefinition);
+>          return beanDefinition;
+>      }
+> }
+> ```
+> ***第一步作用：给IOC容器注入AnnotationAwareAspectJAutoProxyCreator组件***
+>
+> + 其实就是@EnableAspectJAutoProxy注册到IOC容器中需要一个注册机/创建器AnnotationAwareAspectJAutoProxyCreator来创建，这个创建器在IOC容器中的名字为org.springframework.aop.config.internalAutoProxyCreator。
+>
+> + 第一次启动，IOC容器中肯定没有这个名字的创建器，于是就用IOC容器的注册机BeanDefinitionRegistry注册这个用于开启@EnableAspectJAutoProxy的创建器。
+>
+> + IOC容器中注册机注册Bean都是 BeanRootBeanDefinition类型的 如前面的：new RootBeanDefinition(Color.class)
+>
+> + 创建好这个beanDefinition后，就设置他的属性信息如：source，order，setRole(2) 即 ROLE_INFRASTRUCTURE 表示给Spring底层用的bean
+>
+> + IOC容器注册完这个属性后，就会由org.springframework.aop.config.internalAutoProxyCreator这个组件（注册的就是他）
+>
+>   
+>
+> ***第二步：AnnotationAwareAspectJAutoProxyCreator组件的作用***
+>
+> ```java
+> /*
+>  AnnotationAwareAspectJAutoProxyCreator
+>   -》AspectJAwareAdvisorAutoProxyCreator
+>    -》AbstractAdvisorAutoProxyCreator
+>     -》AbstractAutoProxyCreator
+>      -》ProxyProcessorSupport 
+>         最重要关注到实现的这两个接口【后置处理器和BeanfactoryAware】
+>         implements SmartInstantiationAwareBeanPostProcessor, BeanFactoryAware 
+> */
+> SmartInstantiationAwareBeanPostProcessor//在bean初始化前后做事情
+> BeanFactoryAware //自动注入
+> ```
+>
+> debug查看一般都是看关键的这两个的override方法
+>
+> ```java
+> 	BeanFactoryAware#setBeanFactory()
+> 	SmartInstantiationAwareBeanPostProcessor#postProcessBeforeInstantiation()
+>     SmartInstantiationAwareBeanPostProcessor#postProcessAfterInitialization()
+>     //还要逆着层次往下找，找到重写这三个方法的子类方法
+>     AbstractAdvisorAutoProxyCreator#setBeanFactory()
+>     AbstractAdvisorAutoProxyCreator#initBeanFactory()
+>     //
+>     AnnotationAwareAspectJAutoProxyCreator#initBeanFactory()
+> ```
+>
+> 
 
 
 
