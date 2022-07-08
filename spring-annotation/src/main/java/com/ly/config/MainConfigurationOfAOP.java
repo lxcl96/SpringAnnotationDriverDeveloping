@@ -16,6 +16,10 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 @Configuration
 public class MainConfigurationOfAOP {
 
+    @Bean//切面类加入到容器中
+    public LogAspects logAspects() {
+        return new LogAspects();
+    }
 
     @Bean//业务逻辑类加入到容器中
     public MathCalculator calculator(){
@@ -23,8 +27,5 @@ public class MainConfigurationOfAOP {
     }
 
 
-    @Bean//切面类加入到容器中
-    public LogAspects logAspects() {
-        return new LogAspects();
-    }
+
 }
