@@ -2290,26 +2290,26 @@ public @interface EnableAspectJAutoProxy {
 > }
 > //顺序2
 > @Nullable
->  public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
->      return registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry, (Object)null);
->  }
+> public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
+>   return registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry, (Object)null);
+> }
 > //顺序3
->  @Nullable
->  public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry, @Nullable Object source) {
->      return registerOrEscalateApcAsRequired(AnnotationAwareAspectJAutoProxyCreator.class, registry, source);
->  }
+> @Nullable
+> public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry, @Nullable Object source) {
+>   return registerOrEscalateApcAsRequired(AnnotationAwareAspectJAutoProxyCreator.class, registry, source);
+> }
 > 
 > //顺序4  注册 AnnotationAwareAspectJAutoProxyCreator（即启用AOP编程）
->  private static BeanDefinition registerOrEscalateApcAsRequired(Class<?> cls, BeanDefinitionRegistry registry, @Nullable Object source) {
+> private static BeanDefinition registerOrEscalateApcAsRequired(Class<?> cls, BeanDefinitionRegistry registry, @Nullable Object source) {
 > 	...
->   } else {
->          RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
->          beanDefinition.setSource(source);
->          beanDefinition.getPropertyValues().add("order", -2147483648);
->          beanDefinition.setRole(2);
->          registry.registerBeanDefinition("org.springframework.aop.config.internalAutoProxyCreator", beanDefinition);
->          return beanDefinition;
->      }
+> } else {
+>       RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
+>       beanDefinition.setSource(source);
+>       beanDefinition.getPropertyValues().add("order", -2147483648);
+>       beanDefinition.setRole(2);
+>       registry.registerBeanDefinition("org.springframework.aop.config.internalAutoProxyCreator", beanDefinition);
+>       return beanDefinition;
+>   }
 > }
 > ```
 > ***第一步作用：给IOC容器注入AnnotationAwareAspectJAutoProxyCreator组件***
@@ -2324,7 +2324,7 @@ public @interface EnableAspectJAutoProxy {
 >
 > + IOC容器注册完这个属性后，就会由org.springframework.aop.config.internalAutoProxyCreator这个组件（注册的就是他）
 >
->   
+> 
 >
 > ***第二步：AnnotationAwareAspectJAutoProxyCreator组件的作用***
 >
@@ -2358,7 +2358,7 @@ public @interface EnableAspectJAutoProxy {
 > 第二步：AOP原理
 >
 > ```java
->  /
+>  /*
 >  * 流程：
 >  * 		1）、传入配置类，创建ioc容器
 >  * 		2）、注册配置类，调用refresh（）刷新容器；
@@ -2462,6 +2462,25 @@ public @interface EnableAspectJAutoProxy {
 >  * 			2)、链式获取每一个拦截器，拦截器执行invoke方法，每一个拦截器等待下一个拦截器执行完成返回以后再来执行；
 >  * 				拦截器链的机制，保证通知方法与目标方法的执行顺序；
 >  * 		
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
+>  
 >  * 	总结：
 >  * 		1）、  @EnableAspectJAutoProxy 开启AOP功能
 >  * 		2）、 @EnableAspectJAutoProxy 会给容器中注册一个组件 AnnotationAwareAspectJAutoProxyCreator

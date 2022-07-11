@@ -2,9 +2,7 @@ package test;
 
 import com.ly.aop.MathCalculator;
 import com.ly.config.MainConfigurationOfAOP;
-import org.aspectj.lang.JoinPoint;
 import org.junit.Test;
-import org.springframework.aop.aspectj.MethodInvocationProceedingJoinPoint;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 /**
@@ -22,6 +20,7 @@ public class AOPTest {
         //正常调用MathCalculator的div方法即可
         //MathCalculator calculator = new MathCalculator();  千万别自己创建，要从IOC容器中取
         MathCalculator calculator = (MathCalculator) applicationContext.getBean("calculator");
+        System.getProperties().put("sun.misc.ProxyGenerator.saveGeneratedFiles","true");
         int ret = calculator.div(2, 0);
 
         System.out.println(ret);
