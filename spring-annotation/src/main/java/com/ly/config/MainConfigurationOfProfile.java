@@ -48,7 +48,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
         dataSource.setDriverClass(driver);
         dataSource.setJdbcUrl(url);
         dataSource.setUser(valueResolver.resolveStringValue("${dev.user}"));
-        dataSource.setPassword("{dev.password}");
+        dataSource.setPassword("${dev.password}");
         return dataSource;
     }
 
@@ -60,7 +60,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
         dataSource.setDriverClass("${test.driver}");
         dataSource.setJdbcUrl("${test.url}");
         dataSource.setUser("${test.user}");
-        dataSource.setPassword("{test.password}");
+        dataSource.setPassword("${test.password}");
         return dataSource;
     }
 
@@ -72,7 +72,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
         dataSource.setDriverClass("${production.driver}");
         dataSource.setJdbcUrl("${production.url}");
         dataSource.setUser("${production.user}");
-        dataSource.setPassword("{production.password}");
+        dataSource.setPassword("${production.password}");
         return dataSource;
     }
 

@@ -2258,7 +2258,7 @@ AOP底层原理：动态代理
 
 如果搞明白这些，以后遇到`@Enablexxx`注解，都是按照这三步来看
 
-## 1、`@EnableAspectJAutoProxy` 开启AOP注解（最重要）
+## `@EnableAspectJAutoProxy` 开启AOP注解（最重要）
 
 ***源码：***
 
@@ -2506,15 +2506,275 @@ public @interface EnableAspectJAutoProxy {
 >
 > 
 
+# 七：@Transactional 事务管理
+
+## 1、配置``@Transactional`开启事务管理
+
+声明式事务：Spring事务注解（底层AOP原理）
+
+编程式事务：类似于老韩讲的apache工具中的手动开启事务并回滚的
+
+***完全xml方式：***
+
+```xml
+<!-- 开启事务两步 等价于@Bean("transactionManager")-->
+<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+    <property name="dataSource" value="" />
+</bean>
+
+<!-- 等价于 @EnableTransactionManagement-->
+<tx:annotation-driven transaction-manager="transactionManager" />
+
+<!-- 配置事务通知即 拦截器 后置处理器-->
+<tx:advice transaction-manager="transactionManager" id="transactionInterceptor" >
+    <tx:attributes>
+        <tx:method name="insertUser"/>
+    </tx:attributes>
+</tx:advice>
+
+<!-- 配置事务织入-->
+<aop:config>
+    <aop:advisor advice-ref="transactionInterceptor" pointcut="execution(* com.ly.tx.UserService.insertUser(..))" />
+</aop:config>
+```
+
+***注解方式：配置类：***
+
+```java
+/**
+ * 声明式事务:
+ *
+ * 环境搭建：
+ *   1、导入依赖（数据源，数据库驱动，Spring-jdbc模块）
+ *   2、配置数据源和JDBCTemplate（Spring提供简化数据库操作的工具）操作数据
+ *   3、Service层方法加上@Transactional注解，开启事务
+ *   4、配置类上加入 @EnableTransactionManagement
+ *   5、配置事务管理器(IOC容器中事务管理器的名字必须为：transactionManager)进行事务管理
+ */
+
+@Configuration
+@ComponentScan("com.ly.tx") 
+@EnableTransactionManagement //等价于 <tx:annotation-driven
+@PropertySource(value = {"classpath:jdbc.properties"})
+public class TxConfig {
+    @Value("${tx.driver}")
+    private String driverClass;
+    @Value("${tx.url}")
+    private String jdbcUrl;
+    @Value("${tx.user}")
+    private String user;
+    @Value("${tx.password}")
+    private String pwd;
+
+    /**
+     * 获取数据源
+     * @return 数据源
+     * @throws PropertyVetoException 异常
+     */
+    @Bean("dataSource")
+    public DataSource getDataSource() throws PropertyVetoException {
+        ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        dataSource.setDriverClass(driverClass);
+        dataSource.setJdbcUrl(jdbcUrl);
+        dataSource.setUser(user);
+        dataSource.setPassword(pwd);
+
+        return dataSource;
+
+    }
+
+    /**
+     * 为了方便操作数据库，使用JDBCTemplate
+     * @return jdbc模板
+     */
+    @Bean("jdbcTemplate") //Spring会自动注入参数
+    public JdbcTemplate getJdbcTemplate(DataSource dataSource){
+        JdbcTemplate template = new JdbcTemplate();
+        template.setDataSource(dataSource);
+        //Spring会对@Configuration 文件特殊处理：给容器中添加组件的方法，多次调用都只是从容器中找组件
+        //template.setDataSource(getDataSource());
+        return template;
+    }
+
+    /**
+     * 配置事务管理器
+     * @return 事物管理器
+     * @throws PropertyVetoException 异常
+     */
+    @Bean("transactionManager") //等价于 <bean id="transactionManager" 
+    public PlatformTransactionManager getDataSourceTransactionManager() throws PropertyVetoException {
+        DataSourceTransactionManager transactionManager = new DataSourceTransactionManager();
+        transactionManager.setDataSource(getDataSource());
+        return transactionManager;
+    }
+}
+```
+
+***service层：***
+
+```java
+/**
+ * 一般事务都放在Service层开启，出现异常进行回滚
+ */
+@Transactional
+public void insertUser() {
+    int insert = userDao.insert();
+    System.out.println("更新记录：" + insert);
+    //其他的dao操作
+    int except = 10 / 0;
+    System.out.println("所以dao操作全部完成");
+}
+```
 
 
 
+## 2、`@Transactional` 事务原理
 
+底层原理就是AOP
 
+***注解`@EnableTransactionManagement`源码***
 
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@Import(TransactionManagementConfigurationSelector.class)
+public @interface EnableTransactionManagement {
 
+   boolean proxyTargetClass() default false;
 
+   AdviceMode mode() default AdviceMode.PROXY;//默认就是动态代理
 
+   int order() default Ordered.LOWEST_PRECEDENCE;
+}
+```
 
-
-
+> 1、关键注解为： `@EnableTransactionManagement`（类似`@EnableAspectJAutoProxy`），进去可以看到
+>
+> ```java
+> @Import(TransactionManagementConfigurationSelector.class)
+> ```
+>
+> 2、`TransactionManagementConfigurationSelector`类，根据`AdviceMode式`属性选择代理模，这个`AdviceMode`就是  `@EnableTransactionManagement`的`mode`属性。主要用于判断使用哪种代理模式
+>
+> + PROXY：`AutoProxyRegistrar.class`，`ProxyTransactionManagementConfiguration.class`
+> + ASPECTJ：`determineTransactionAspectClass()`
+>
+> 3、重点看`AutoProxyRegistrar.class`和`ProxyTransactionManagementConfiguration.class`
+>
+> 4、***`AutoProxyRegistrar.class`***
+>
+> - 通过包名不难看出这是一个代理注册机
+>
+>   ```java
+>   //关键代码
+>   ...
+>   if (mode == AdviceMode.PROXY) {
+>       //关键（其实这里就可以看出，因为AOP的AopConfigUtils.registerAutoProxyCreatorIfNecessary()方法）
+>      AopConfigUtils.registerAutoProxyCreatorIfNecessary(registry);
+>      if ((Boolean) proxyTargetClass) {
+>         AopConfigUtils.forceAutoProxyCreatorToUseClassProxying(registry);
+>         return;
+>      }
+>   }
+>   ...
+>   
+>    /*
+>    	下面就是AOP原理的过程：即利用后置处理器在对象创建后，包装对象，返回一个代理对象（增强类），代理对象执行方法利用拦截器链进行调用事务方法
+>    	@Nullable
+>   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
+>   		return registerAutoProxyCreatorIfNecessary(registry, null);
+>   	}
+>   
+>   	@Nullable
+>   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(
+>   			BeanDefinitionRegistry registry, @Nullable Object source) {
+>   		return registerOrEscalateApcAsRequired(InfrastructureAdvisorAutoProxyCreator.class, registry, source);
+>   	}
+>   
+>   	找出关键类：给IOC容器中注册一个组件InfrastructureAdvisorAutoProxyCreator
+>   	...
+>    */
+>   ```
+>
+> 5、***`ProxyTransactionManagementConfiguration.class`***
+>
+> 该类主要式配置类，给IOC容器注入事务管理器必须的属性
+>
+> + 给IOC容器注入事务增强器` transactionAdvisor`
+>
+>   + 设置事务属性
+>   
+>   ```java
+>   //设置事务属性，主要是设置事务注解解析器new SpringTransactionAnnotationParser()
+>   advisor.setTransactionAttributeSource(transactionAttributeSource);
+>   
+>   //SpringTransactionAnnotationParser.class只要用于解析注解 @Transactional的属性，value,transactionManager...等等所有
+>   public @interface Transactional {
+>   	@AliasFor("transactionManager")
+>   	String value() default "";
+>   	@AliasFor("value")
+>   	String transactionManager() default "";
+>   	String[] label() default {};
+>   	Propagation propagation() default Propagation.REQUIRED;
+>   	Isolation isolation() default Isolation.DEFAULT;
+>   	int timeout() default TransactionDefinition.TIMEOUT_DEFAULT;
+>   	String timeoutString() default "";
+>   	boolean readOnly() default false;
+>   	Class<? extends Throwable>[] rollbackFor() default {};
+>   	String[] rollbackForClassName() default {};
+>   	Class<? extends Throwable>[] noRollbackFor() default {};
+>   	String[] noRollbackForClassName() default {};
+>   
+>   }
+>   ```
+>   
+>   + 设置通知拦截器 
+>   
+>     ```Java
+>     //设置事务/通知拦截器用于执行,开启事务的方法的事务AOP
+>     advisor.setAdvice(transactionInterceptor);
+>     
+>     //创建TransactionInterceptor
+>     //调用器TransactionInterceptor.invoke方法
+>     //然后调用return invokeWithinTransaction(...) 最终要的方法
+>     	//invokeWithinTransaction里面匿名内部类就是调用CglibAopProxy.proceed()方法,然后就是和AOP的通知排序一样,调用链执行proceed方法
+>     
+>     
+>     ```
+>   
+>   + 调用事务方法 
+>   
+>     ```java
+>     invokeWithinTransaction(...)
+>     
+>     
+>     //事务拦截器：
+>     //1）、先获取事务相关的属性
+>     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
+>     
+>     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务】
+>     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
+>     
+>     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
+>     
+>         try {
+>             //尝试调用 加上@Transactional 的Service层方法
+>             retVal = invocation.proceedWithInvocation();
+>         }
+>     catch (Throwable ex) {
+>         //出现异常,执行异常通知
+>         completeTransactionAfterThrowing(txInfo, ex);
+>         throw ex;
+>     }
+>     finally {
+>         //最后情况事务信息
+>         cleanupTransactionInfo(txInfo);
+>     }
+>     ...
+>     //正确执行就提交事务
+>     commitTransactionAfterReturning(txInfo);
+>     return retVal;
+>     ```
+>
+> 6、
