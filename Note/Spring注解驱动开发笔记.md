@@ -2753,7 +2753,7 @@ public @interface EnableTransactionManagement {
 >     //1）、先获取事务相关的属性
 >     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
 >     
->     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务】
+>     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
 >     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
 >     
 >     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
@@ -2776,5 +2776,437 @@ public @interface EnableTransactionManagement {
 >     commitTransactionAfterReturning(txInfo);
 >     return retVal;
 >     ```
+
+# 八、Spring扩展原理
+
+## 1、BeanFactoryPostProcessor.class
+
+***时刻谨记BeanFactory和ApplicationContext的区别：***
+
++ BeanFactory只有在需要时，才会真正创建bean（如：调用getBean方法）。否则IOC容器中只是存放这些bean的定义
++ ApplicationContext在IOC容器创建后自动创建好所有被扫描的bean，放在IOC容器中，每次调用（如：getBean方法），直接从IOC容器中取，而不是再创建。
+
+==beanFactory的后置处理器，在bean标准初始化后调用（此时所有bean定义已经被加载到IOC容器中，但是并没有任何bean被实例化）==
+
+> [区别BeanFactoryPostProcessor bean的后置处理器，在bean被创建，及初始化前后拦截调用的]
+
+***配置类ExtConfig.class***
+
+```java
+/* 调用时机：所有bean定义被加载到IOC容器，但是没有一个bean被实例化（构造）*/
+
+@Configuration
+@Import(Cat.class) 
+//放在MyBeanFactoryPostProcessor前，用来判断 BeanFactoryPostProcessor 的调用时机
+@ComponentScan({"com.ly.ext"})
+public class ExtConfig {
+
+}
+```
+
+***MyBeanFactoryPostProcessor.class***
+
+```java
+//必须手动注册到IOC容器中，不会自动扫描
+@Component
+public class MyBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
+    @Override
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+        //注意函数名，获取的是bean定义信息，如果是getbean 那么就会先创建/实例化 cat对象
+        //Cat cat = beanFactory.getBean("com.ly.bean.Cat", Cat.class);
+        //System.out.println(cat);
+        
+        int count = beanFactory.getBeanDefinitionCount();
+        String[] names = beanFactory.getBeanDefinitionNames();
+        for (String name : names) {
+            System.out.println(name);
+        }
+        System.out.println("MyBeanFactoryPostProcessor 结束！ 共定义bean的个数：" + count);
+
+    }
+}
+```
+
+***测试及结果：***
+
+```java
+@Test
+public void testMyBeanFactoryPostProcessor() {
+    AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext(ExtConfig.class);
+    System.out.println("test测试");
+    applicationContext.close();
+}
+```
+
+![image-20220713094340170](.\img\image-20220713094340170.png)
+
+***源码执行流程：***
+
+```java
+/*
+ * 1、testMyBeanFactoryPostProcessor()
+ * 2、AnnotationConfigApplicationContext()
+ * 3、AbstractApplicationContext#refresh() --> invokeBeanFactoryPostProcessors(beanFactory);
+ * 4、AbstractApplicationContext#invokeBeanFactoryPostProcessors 
+ *	   PostProcessorRegistrationDelegate.invokeBeanFactoryPostProcessors(..);
+ * 	   和BeanPostProcessor处理过程一样
+ *     ①：按照优先级给bean工厂后置处理器排序
+ *	   ①：按照优先级调用：bean工厂后置处理器（三级）
+ *       invokeBeanFactoryPostProcessors(priorityOrderedPostProcessors, beanFactory);
+ *       invokeBeanFactoryPostProcessors(orderedPostProcessors, beanFactory);
+ *       invokeBeanFactoryPostProcessors(nonOrderedPostProcessors, beanFactory);//我们自己写的就是普通bean工厂的后置处理器，在此调用
+ * 5、PostProcessorRegistrationDelegate#invokeBeanFactoryPostProcessors()
+ *     postProcessor.postProcessBeanFactory(beanFactory);
+ * 6、MyBeanFactoryPostProcessor#postProcessBeanFactory()//就是我们重写的方法
+ */
+```
+
+## 2、BeanDefinitionRegistryPostProcessor.class
+
+***IOC容器创建bean过程：1、Registry注册BeanDefinition 2、IOC容器根据registry中的定义好的bean注册信息，构建bean***
+
+`BeanDefinitionRegistryPostProcessor.class`是`BeanFactoryPostProcessor.class`的一个子接口
+
+==BeanDefinitionRegistry后置处理器，在bean definition registry标准初始化后调用（此时所有常规的bean定义将被加载，但是没有任何bean被实例化（构造））==
+
+==换句话说就是在BeanFactoryPostProcessor前执行，其它条件一样==
+
+即：执行BeanFactoryPostProcessor之前需要先执行BeanDefinitionRegistryPostProcessor（确定定义好bean才会执行后置处理器）
+
+> `BeanFactoryPostProcessor.class` 是为了覆盖，添加属性（单实例还是多实例，id为什么等等），或者在此提前创建bean（自己手动添加额外的对象）
 >
-> 6、
+> `BeanDefinitionRegistryPostProcessor.class` 是为了添加额外的bean定义
+
+***MyBeanDefinitionRegistryPostProcessor.class***
+
+```java
+
+@Component
+public class MyBeanDefinitionRegistryPostProcessor implements BeanDefinitionRegistryPostProcessor {
+    @Override
+    //bean定义注册机后置处理器
+    public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
+        int count = registry.getBeanDefinitionCount();
+        String[] names = registry.getBeanDefinitionNames();
+        System.out.println("所有bean定义将被加载到IOC容器中的个数：" + count + " ,名字：" + Arrays.asList(names));
+
+        //自己创建bean定义信息，IOC容器会根据这个定义信息创建Bean 方法1
+        registry.registerBeanDefinition("myFlour", new RootBeanDefinition(Flour.class));
+
+        registry.registerBeanDefinition("myColor", BeanDefinitionBuilder.rootBeanDefinition(Color.class).getBeanDefinition());
+        System.out.println("-- BeanDefinitionRegistryPostProcessor，所有BeanFactoryPostProcessor前执行");
+
+    }
+
+    @Override
+    //bean工厂后置处理器
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+        System.out.println("****************************");
+    }
+}
+```
+
+***源码执行流程：***
+
+```java
+/*
+ * 1、testMyBeanFactoryPostProcessor()
+ * 2、AnnotationConfigApplicationContext()
+ * 3、AbstractApplicationContext#refresh() --> invokeBeanFactoryPostProcessors(beanFactory);
+ * 4、AbstractApplicationContext#invokeBeanFactoryPostProcessors 
+ *	   PostProcessorRegistrationDelegate.invokeBeanFactoryPostProcessors(..);
+ * 	   和BeanPostProcessor处理过程一样
+       -- //此处为BeanDefinitionRegistryPostProcessor执行完全一样
+       
+       		 ①：按照优先级给BeanDefinitionRegistryPostProcessors排序
+       		 ②：按照优先级调用BeanDefinitionRegistryPostProcessors
+       		   	 invokeBeanDefinitionRegistryPostProcessors(..)
+       		 ③：调用BeanDefinitionRegistryPostProcessors的BeanFactoryPostProcessor
+       		 	 invokeBeanFactoryPostProcessors(registryProcessors, beanFactory);
+				invokeBeanFactoryPostProcessors(regularPostProcessors, beanFactory);
+       --
+ *     ①：按照优先级给bean工厂后置处理器BeanFactoryPostProcessor排序
+ *	   ①：按照优先级调用：bean工厂后置处理器BeanFactoryPostProcessor（三级）
+ *       invokeBeanFactoryPostProcessors(priorityOrderedPostProcessors, beanFactory);
+ *       invokeBeanFactoryPostProcessors(orderedPostProcessors, beanFactory);
+ *       invokeBeanFactoryPostProcessors(nonOrderedPostProcessors, beanFactory);//我们自己写的就是普通bean工厂的后置处理器，在此调用
+ * 5、PostProcessorRegistrationDelegate#invokeBeanFactoryPostProcessors()
+ *     postProcessor.postProcessBeanFactory(beanFactory);
+ * 6、MyBeanFactoryPostProcessor#postProcessBeanFactory()//就是我们重写的方法
+ */
+```
+
+## 3、ApplicationListener
+
+==***都是在IOC容器结束刷新 finishRefresh()时 调用所有事件监听器***==
+
+监听容器中发布的事件，为事件驱动模型开发。
+
+```java
+@FunctionalInterface
+//只能监听 ApplicationEvent 及其子类型
+public interface ApplicationListener<E extends ApplicationEvent> extends EventListener {
+
+   void onApplicationEvent(E event);
+
+   static <T> ApplicationListener<PayloadApplicationEvent<T>> forPayload(Consumer<T> consumer) {
+      return event -> consumer.accept(event.getPayload());
+   }
+
+}
+```
+
+***MyApplicationListener.class***
+
+ApplicationEvent默认可以监听到：IOC容器刷新完成事件`ContextRefreshedEvent`和IOC容器关闭事件`ContextClosedEvent`
+
+```java
+@Component
+//指定的泛型为哪个事件类型，IOC容器就会只监听哪个事件（包括子类） ，最大级别为 ApplicationEvent 监听所有事件
+public class MyApplicationListener implements ApplicationListener<ApplicationEvent> {
+
+    @Override
+    //当容器中发布此事件以后，该方法才会触发 ，参数类型必须和泛型完全一致
+    public void onApplicationEvent(ApplicationEvent event) {
+        System.out.println("MyApplicationListener 事件" + event + "触发,timestamp=" + event.getTimestamp());
+        Object source = event.getSource();
+        System.out.println(source);
+    }
+
+
+}
+```
+
+源码分析：
+
+***不难看出，IOC容器通过`publishEvent(ApplicationEvent event)`进行事件发布。至于具体是什么事件，参数可以自己定义
+
+> IOC容器刷新完成事件:
+>
+> ​	refresh() -->finishRefresh()-->publishEvent(new ContextRefreshedEvent(this));
+>
+> IOC容器关闭事件
+>
+> ​	applicationContext.close()-->doClose()-->publishEvent(new ContextClosedEvent(this));
+>
+> 
+>
+> ***核心代码: `getApplicationEventMulticaster().multicastEvent(applicationEvent, eventType);`***
+>
+> + `getApplicationEventMulticaster()`表示获取事件的多播器。
+>
+>   事件的多播器在`refresh()-->initApplicationEventMulticaster()`初始化多播器。如果IOC容器`beanFactory`中有名为`applicationEventMulticaster`的多播器就从IOC容器中取;如果没有就新建一个`new SimpleApplicationEventMulticaster(beanFactory);`并放在容器中
+>
+> + 那么事件多播器`EventMulticaster`又是如何获取事件监听器`ApplicationListener`的呢？
+>
+>   在`refresh()-->registerListeners()`中，按照类型`ApplicationListener`取所有监听器的定义，并把所有listenerBeanName添加到事件多播器中
+>
+>   ```java
+>   String[] listenerBeanNames = getBeanNamesForType(ApplicationListener.class, true, false);
+>   for (String listenerBeanName : listenerBeanNames) {
+>       //并添加到多播器中
+>      getApplicationEventMulticaster().addApplicationListenerBean(listenerBeanName);
+>   }
+>   ```
+>
+> + `multicastEvent(applicationEvent, eventType)`方法决定监听器运行为同步还是异步
+>
+>   ```java
+>   @Override
+>   public void multicastEvent(final ApplicationEvent event, @Nullable ResolvableType eventType) {
+>      ResolvableType type = (eventType != null ? eventType : resolveDefaultEventType(event));
+>       //Executor为jdk提供的异步线程调用（解耦）
+>      Executor executor = getTaskExecutor();
+>      for (ApplicationListener<?> listener : getApplicationListeners(event, type)) {
+>         if (executor != null) {
+>             //异步就：新开一个线程 Runable r = () -> invokeListener(listener, event)
+>            executor.execute(() -> invokeListener(listener, event));
+>         }
+>         else {
+>            invokeListener(listener, event);
+>         }
+>      }
+>   }
+>   ```
+>
+> + 
+
+## 3+、事件开发（通过IOC自己发布事件）
+
+==***都是在IOC容器结束刷新 finishRefresh()时 调用所有事件监听器***==
+
+***事件开发步骤：***
+
+- 写一个自己的监听器来监听某个事件(`ApplicationEvent 及其子类`)
+- 把自己写的监听器放在容器中，这样IOC容器才知道
+- 只要容器中有相应事件的发布（`通过ApplicationContext#publishEvent()自己发布`），就会执行相应监听器
+
+***举例：用户登录时，发布用户登录事件并监听处理***
+
+1. 配置类 `Config.class`
+
+   ```java
+   @Configuration
+   @ComponentScan("com.ly.ext.eventDeveloping")
+   public class Config {
+   }
+   ```
+
+2. `UserController`接收用户登陆请求
+
+   ```java
+   @Controller
+   //因为模拟，请求链就不写了
+   public class UserController {
+       public void login(ApplicationContext applicationContext) {
+           System.out.println("用户登陆，发布用户登陆事件！");
+   		
+           //通过IOC自己发布事件
+           applicationContext.publishEvent(new UserOnLineEvent(this));
+           //其他的业务
+       }
+   
+   }
+   ```
+
+3. `UserOnLineEvent.class`自定义事件
+
+   ```java
+   public class UserOnLineEvent extends ApplicationEvent {
+       public UserOnLineEvent(Object source) {
+           //发布时传递的参数this,可谓任意值
+           super(source);
+       }
+   
+       public UserOnLineEvent(Object source, Clock clock) {
+           super(source, clock);
+       }
+   }
+   ```
+
+4. `UserLoginListener.class`事件对应监听器,用于监听事件的发布`publishEvent`
+
+   ```java
+   @Component
+   public class UserLoginListener implements ApplicationListener<UserOnLineEvent> {
+       @Override
+       public void onApplicationEvent(UserOnLineEvent event) {
+           System.out.println("收到用户登陆事件" + event + " ，准备进行业务处理！");
+       }
+   }
+   ```
+
+5. 测试,模拟用户发送登陆请求
+
+   ```java
+   @Test
+   public void testEventDeveloping(){
+       AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext(Config.class);
+       //模拟用户登陆，手动传递IOC容器
+       applicationContext.getBean("userController", UserController.class).login(applicationContext);
+   
+       applicationContext.close();
+   }
+   ```
+
+6. 结果
+
+   > `用户登陆，发布用户登陆事件！`
+   > `收到用户登陆事件com.ly.ext.eventDeveloping.UserOnLineEvent[source=com.ly.ext.eventDeveloping.UserController@3c419631] ，准备进行业务处理！`
+
+## 4、@EventListener 监听任意事件（注解方法）
+
+==***都是在IOC容器结束刷新 finishRefresh()时 调用所有事件监听器***==
+
+==***标注在方法上，表示该方法会监听到指定事件（因为是监听器所以会比较先加载）***==
+
+***源码：***
+
+```java
+@Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface EventListener {
+	//表示监听事件的类型，最大的范围为ApplicationEvent
+   @AliasFor("classes")
+   Class<?>[] value() default {};
+	//表示监听事件的类型，最大的范围为ApplicationEvent
+   @AliasFor("value")
+   Class<?>[] classes() default {};
+
+   String condition() default "";
+
+   String id() default "";
+
+}
+```
+
+
+
+***使用：***
+
+```java
+@Service
+public class UserService {
+
+    @EventListener({ApplicationEvent.class})
+    public void login(ApplicationContext applicationContext,ApplicationEvent event) {
+        //通过自动注入，获取到IOC容器和事件event
+        System.out.println(event);
+    }
+}
+
+```
+
+***源码流程：***
+
+和实现的`ApplicationListener`接口调用时机一样：
+
+==***都是在IOC容器结束刷新 finishRefresh()时 调用所有事件监听器***==
+
+```java
+//  refresh()->finishRefresh()->...
+```
+
+调用顺序：
+
++ 先开启/调用实现了`ApplicationListener`接口的监听器
+
++ 再开启/调用使用注解`@EventListener `的监听器
+
+  > 先后调用两次`EventListenerMethodProcessor`解析注解`@EventListener`包装成`ApplicatonListenerMethodAdapter`IOC监听方法适配器
+  >
+  > 调用的底层原理也是BeanFactoryPostProcessor
+  >
+  > ```java
+  > //找到EventListenerFactory 名字为“internalEventListenerFactory”记录下来
+  >    refresh()->invokeBeanFactoryPostProcessors(..)->..postProcessBeanFactory()
+  >         
+  > //在IOC所有bean被创建完成后，使用上面记录的EventListenerFactory将注解@EventListener转化成ApplicationListener，并注册到IOC容器中
+  >    refresh()->finishBeanFactoryInitialization(..)->..afterSingletonsInstantiated()
+  >        applicationListener =
+  > 				factory.createApplicationListener(beanName, targetType, methodToUse);
+  > 		//将新生成的监听器放到IOC容器中
+  >        context.addApplicationListener(applicationListener)
+  >            
+  > //监听器监听到对应事件  login方法被调用
+  > ```
+  >
+  > 问题:监听器放在容器中是如何接收事件的?或者说怎么被调用的?
+  >
+  > 答:IOC通过`publishEvent(new ContextRefreshedEvent(this))`发布事件时调用
+  >
+  > + 通过发布的事件类型,遍历所有监听器找到匹配的事件监听器
+  > + 调用`invokeListener(listener, event)`
+
+
+
+# 九、Spring容器创建过程
+
+***Spring容器创建主要流程如下：***
+
+1、`new AnnotationConfigApplicationContext(ExtConfig.class)`
+
+​	1.1、`refresh();`
+
+​		1.1.1、
