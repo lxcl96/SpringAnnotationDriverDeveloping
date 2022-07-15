@@ -1,5 +1,6 @@
 package com.ly.ext;
 
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
@@ -20,4 +21,10 @@ public class MyAnnotationConfigApplicationContext extends AnnotationConfigApplic
     protected void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
         super.postProcessBeanFactory(beanFactory);
     }
+
+    @Override
+    protected void onRefresh() throws BeansException {
+        super.onRefresh();
+    }
+
 }

@@ -1,5 +1,6 @@
 package com.ly.ext;
 
+import com.ly.bean.Blue;
 import com.ly.bean.Cat;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -24,5 +25,8 @@ import org.springframework.context.annotation.Import;
 @Import(Cat.class) //放在MyBeanFactoryPostProcessor前，用来判断 BeanFactoryPostProcessor 的调用时机
 @ComponentScan({"com.ly.ext"})
 public class ExtConfig {
-
+    @Bean
+    public Blue blue() {
+        return new Blue();
+    }
 }
