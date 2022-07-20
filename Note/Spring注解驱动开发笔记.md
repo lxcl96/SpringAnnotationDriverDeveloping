@@ -2678,20 +2678,20 @@ public @interface EnableTransactionManagement {
 >      }
 >   }
 >   ...
->     
+>       
 >    /*
 >    	下面就是AOP原理的过程：即利用后置处理器在对象创建后，包装对象，返回一个代理对象（增强类），代理对象执行方法利用拦截器链进行调用事务方法
 >    	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
 >   		return registerAutoProxyCreatorIfNecessary(registry, null);
 >   	}
->     
+>       
 >   	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(
 >   			BeanDefinitionRegistry registry, @Nullable Object source) {
 >   		return registerOrEscalateApcAsRequired(InfrastructureAdvisorAutoProxyCreator.class, registry, source);
 >   	}
->     
+>       
 >   	找出关键类：给IOC容器中注册一个组件InfrastructureAdvisorAutoProxyCreator
 >   	...
 >    */
@@ -2708,7 +2708,7 @@ public @interface EnableTransactionManagement {
 >   ```java
 >   //设置事务属性，主要是设置事务注解解析器new SpringTransactionAnnotationParser()
 >   advisor.setTransactionAttributeSource(transactionAttributeSource);
->     
+>       
 >   //SpringTransactionAnnotationParser.class只要用于解析注解 @Transactional的属性，value,transactionManager...等等所有
 >   public @interface Transactional {
 >   	@AliasFor("transactionManager")
@@ -2725,7 +2725,7 @@ public @interface EnableTransactionManagement {
 >   	String[] rollbackForClassName() default {};
 >   	Class<? extends Throwable>[] noRollbackFor() default {};
 >   	String[] noRollbackForClassName() default {};
->     
+>       
 >   }
 >   ```
 >   
@@ -2734,7 +2734,7 @@ public @interface EnableTransactionManagement {
 >     ```Java
 >     //设置事务/通知拦截器用于执行,开启事务的方法的事务AOP
 >     advisor.setAdvice(transactionInterceptor);
->         
+>             
 >     //创建TransactionInterceptor
 >     //调用器TransactionInterceptor.invoke方法
 >     //然后调用return invokeWithinTransaction(...) 最终要的方法
@@ -2752,12 +2752,12 @@ public @interface EnableTransactionManagement {
 >     //事务拦截器：
 >     //1）、先获取事务相关的属性
 >     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
->         
+>             
 >     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
 >     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
->         
+>             
 >     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
->         
+>             
 >         try {
 >             //尝试调用 加上@Transactional 的Service层方法
 >             retVal = invocation.proceedWithInvocation();
@@ -3199,14 +3199,274 @@ public class UserService {
   > + 通过发布的事件类型,遍历所有监听器找到匹配的事件监听器
   > + 调用`invokeListener(listener, event)`
 
-
-
 # 九、Spring容器创建过程
 
-***Spring容器创建主要流程如下：***
+***Spring容器创建主要流程：***[见文档 “Spring容器创建过程.xmind](Spring容器创建过程.xmind)”
 
-1、`new AnnotationConfigApplicationContext(ExtConfig.class)`
+==总结：==
 
-​	1.1、`refresh();`
+1. Spring容器在启动的时候，先会保存所有注册进来的bean的定义信息，根据bean的定义信息创建对象
+   - xml方式注册bean
+   - 注解类方式注册bean
+2. Spring容器会在合适的时机创建这些
+   + 合适的时机1(`prototype`)：*用到这个bean的时候*，利用getBean创建bean。创建好后保存在容器中
+   + 合适的时机2(`singleton`)：*统一创建剩下所有bean* 即`finishBeanFactoryInitialization(beanFactory)`
+3. 核心步骤：后置处理器
+   + 每一个bean创建完，都会使用各种后置处理器进行处理，来增强bean的功能
+4. 事件驱动模型：ApplicationListener 事件监听器
+   + 事件派发ApplicationEventMulticaster
 
-​		1.1.1、
+# 十、Servlet3.0
+
+## 1、servlet3.0的注解
+
+servlet3.0属于JSR315规范，可在网站查询到：[The Java Community Process(SM) Program (jcp.org)](https://jcp.org/en/home/index)
+
+代替web.xml中配置注解：
+
++ `@WebServlet`：代替<servlet> 标签
+
+  > ```java
+  > @WebServlet("/hello")
+  > public class HelloServlet extends HttpServlet {
+  >     @Override
+  >     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+  >         resp.getWriter().write("hello...");
+  >     }
+  > }
+  > ```
+
++ `@WebFilter`：代替<filter>标签
+
++ `@WebInitParam`：web初始化参数，用来传递给`Servlet`或`Filter`，它是`@WebServlet`和`@WebFilter`的一个属性 
+
+  > 举例：Spring整合到web.xml中时也会配置一个参数   contextConfigLocation
+
++ ` @WebListener`：代替<listener>标签
+
++ `@MultipartConfig`：标注在`Servlet`上，表示请求类型为`mime/multipart`，必须通过`getParts and getPart`方法才能获取到文件流信息
+
+## 2、Servlet3.0的分享库(Shared Libraries)和运行时插件能力(Runtimes Pluggability)
+
+servlet容器在启动时会扫描当前应用里面每一个jar包，找到`ServletContainerInitializer`接口的实现类。我们写的`ServletContainerInitializer`接口的实现类
+
+必须绑定在`META-INF/services/javax.servlet.ServletContainerInitializer`文件中
+
+文件的内容就必须是`ServletContainerInitializer`接口实现类的全类名
+
+总结：==当容器在启动应用时，会扫描应用中每一个jar包目录META-INF/services下的javax.servlet.ServletContainerInitializer这个文件。运行文件中指定的全类名方法==
+
+==Maven中META-INF/services目录放在resources目录下==
+
+> 类似于SpringMVC注解方式启动实现的`AbstractAnnotationConfigDispatcherServletInitializer`接口
+
+***MyServletContainerInitializer：***
+
+```java
+@HandlesTypes(value = {HelloService.class})
+public class MyServletContainerInitializer implements ServletContainerInitializer {
+
+    /**
+     *
+     * @param set 为注解@HandlesTypes(value = {HelloService.class})中指定的要处理类类型（包括接口的子接口，实现类等不包括HelloService自身）
+     * @param servletContext 应用上下文对象，一个web应用一个servletContext
+     * @throws ServletException servlet异常
+     */
+    @Override
+    public void onStartup(Set<Class<?>> set, ServletContext servletContext) throws ServletException {
+        Iterator<Class<?>> iterator = set.iterator();
+        while (iterator.hasNext()) {
+            System.out.println(iterator.next());
+        }
+        System.out.println("MyServletContainerInitializer 启动");
+    }
+}
+
+```
+
+***绑定ServletContainerInitializer接口：***
+
+![image-20220720152428681](.\img\image-20220720152428681.png)
+
+***启动时调用：***
+
+![image-20220720154143079](.\img\image-20220720154143079.png)
+
+
+
+## 3、利用`ServletContainerInitializer`接口将第三方组件加入到ServletContext上下文对象中（不使用web.xml）
+
+使用`servletContext`注册web三大组件(`Servlet,Filter,Listener`)，使用编码的方式，在项目启动时添加！
+
+==项目启动时添加的两种方式：==
+
++ ==实现`ServletContainerInitializer`接口，得到ServletContext，在ServletContext初始化前添加==
+
+  ```java
+  @HandlesTypes(value = {HelloService.class})
+  public class MyServletContainerInitializer implements ServletContainerInitializer {
+  
+      /**
+       *
+       * @param set 为注解@HandlesTypes(value = {})中指定的要处理类类型（包括接口的子接口，实现类等）
+       * @param servletContext 应用上下文对象，一个web应用一个servletContext
+       * @throws ServletException servlet异常
+       */
+      @Override
+      public void onStartup(Set<Class<?>> set, ServletContext servletContext) throws ServletException {
+          
+          //向servletContext注册三大组件
+          ServletRegistration.Dynamic userServlet = servletContext.addServlet("UserServlet", UserServlet.class);
+          //servlet绑定映射信息
+          userServlet.addMapping("/tomcat");
+  
+          //filter绑定映射信息
+          FilterRegistration.Dynamic userFilter = servletContext.addFilter("UserFilter", UserFilter.class);
+          userFilter.addMappingForUrlPatterns(EnumSet.of(DispatcherType.REQUEST),true,"/*");
+  
+  		//加入第三方监听器
+          servletContext.addListener(UserListener.class);
+  
+      }
+  }
+  ```
+
++ ==实现`ServletContextListener`接口，得到ServletContext，在ServletContext初始化时添加==
+
+  ```java
+  public class UserListener implements ServletContextListener {
+      @Override
+      public void contextInitialized(ServletContextEvent servletContextEvent) {
+          System.out.println("UserListener...ServletContextListener...initial");
+      }
+  
+      @Override
+      public void contextDestroyed(ServletContextEvent servletContextEvent) {
+          //初始化时添加第三方组件
+          ServletContext servletContext = servletContextEvent.getServletContext();
+          servletContext.addServlet();
+          servletContext.addFilter();
+          servletContext.addListener();
+          System.out.println("UserListener...ServletContextListener...destroy");
+      }
+  }
+  ```
+
+
+
+十一、Spring整合SpringMVC
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
