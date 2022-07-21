@@ -2678,20 +2678,20 @@ public @interface EnableTransactionManagement {
 >      }
 >   }
 >   ...
->       
+>         
 >    /*
 >    	下面就是AOP原理的过程：即利用后置处理器在对象创建后，包装对象，返回一个代理对象（增强类），代理对象执行方法利用拦截器链进行调用事务方法
 >    	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
 >   		return registerAutoProxyCreatorIfNecessary(registry, null);
 >   	}
->       
+>         
 >   	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(
 >   			BeanDefinitionRegistry registry, @Nullable Object source) {
 >   		return registerOrEscalateApcAsRequired(InfrastructureAdvisorAutoProxyCreator.class, registry, source);
 >   	}
->       
+>         
 >   	找出关键类：给IOC容器中注册一个组件InfrastructureAdvisorAutoProxyCreator
 >   	...
 >    */
@@ -2708,7 +2708,7 @@ public @interface EnableTransactionManagement {
 >   ```java
 >   //设置事务属性，主要是设置事务注解解析器new SpringTransactionAnnotationParser()
 >   advisor.setTransactionAttributeSource(transactionAttributeSource);
->       
+>         
 >   //SpringTransactionAnnotationParser.class只要用于解析注解 @Transactional的属性，value,transactionManager...等等所有
 >   public @interface Transactional {
 >   	@AliasFor("transactionManager")
@@ -2725,7 +2725,7 @@ public @interface EnableTransactionManagement {
 >   	String[] rollbackForClassName() default {};
 >   	Class<? extends Throwable>[] noRollbackFor() default {};
 >   	String[] noRollbackForClassName() default {};
->       
+>         
 >   }
 >   ```
 >   
@@ -2734,7 +2734,7 @@ public @interface EnableTransactionManagement {
 >     ```Java
 >     //设置事务/通知拦截器用于执行,开启事务的方法的事务AOP
 >     advisor.setAdvice(transactionInterceptor);
->             
+>                 
 >     //创建TransactionInterceptor
 >     //调用器TransactionInterceptor.invoke方法
 >     //然后调用return invokeWithinTransaction(...) 最终要的方法
@@ -2752,12 +2752,12 @@ public @interface EnableTransactionManagement {
 >     //事务拦截器：
 >     //1）、先获取事务相关的属性
 >     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
->             
+>                 
 >     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
 >     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
->             
+>                 
 >     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
->             
+>                 
 >         try {
 >             //尝试调用 加上@Transactional 的Service层方法
 >             retVal = invocation.proceedWithInvocation();
@@ -3354,47 +3354,327 @@ public class MyServletContainerInitializer implements ServletContainerInitialize
 
 
 
-十一、Spring整合SpringMVC
+# 十一、Servlet3.0整合SpringMVC
+
+***原理：***
+
+在Servlet3.0中，web容器(如：tomcat)在启动时，会扫描每个jar包下的`META-INF\services\javax.servlet.ServletContainerInitializer`文件。会加载这个文件内指定的加载类(必须实现`ServletContainerInitializer`接口)
+
+***步骤：***
+
++ web容器启动扫描扫描每个jar包下的`META-INF\services\javax.servlet.ServletContainerInitializer`文件内全类名，并加载。
+
+  > 此时加载的是`org.springframework.web.SpringServletContainerInitializer`类
+
++ 利用`@HandlesTypes({WebApplicationInitializer.class})`注解和实现方法`onStartup()`，遍历`WebApplicationInitializer`接口的所有实现类和子类，子接口等，*如果子类不是接口interface，不是抽象的Abstract类则会被创建对象`newInstance`，并被放入集合中`List<WebApplicationInitializer> initializers`*
+
+  > ![image-20220721093049024](.\img\image-20220721093049024.png)
+  >
+  > ***分析`WebApplicationInitializer`接口的抽象类：（其实就是对应web.xml中添加Spring根容器和SpringMVC子容器）***
+  >
+  > 1. `AbstractContextLoaderInitializer（爷类）`：
+  >
+  >    创建root根容器（用来配置Spring），`createRootApplicationContext();`
+  >
+  > 2. `AbstractDispatcherServletInitializer(父类)`：
+  >
+  >    + 创建web的ioc容器，用于配置SpringMVC，`createServletApplicationContext();`
+  >    + 创建DispatcherServlet，`createDispatcherServlet(servletAppContext);`
+  >    + 将创建的DispatcherServlet添加到ServletContext中，并做一些设置
+  >
+  > 3. `AbstractAnnotationConfigDispatcherServletInitializer（子类）`：注解方法配置DispatcherServlet（子容器即SpringMVC）
+  >
+  >    + 创建根容器，用于配置Spring，`createRootApplicationContext()`，通过传入的Spring配置类`getRootConfigClasses()`
+  >    + 创建web的ioc容器，用于配置SpringMVC，`createServletApplicationContext() `，通过传入的SpringMVC配置类`getServletConfigClasses()`
+  >
+  > ***总结：-------->和SpringMVC过程中注解方式配置完全一样------->同样就是简易版的SpringBoot***
+  >
+  > 以注解方式启动SpringMVC，只需要继承`AbstractAnnotationConfigDispatcherServletInitializer`,
+  >
+  > + 实现`getRootConfigClasses()`方法，将Spring配置类加入到根容器中
+  > + 实现`getServletConfigClasses()`方法，将SpringMVC配置类加入到web容器中（子容器）
+  > + 调用父类们的其他方法，用来配置`Listener,Servlet,Filter`等等
+
+***具体步骤见文件：springmvc-annotation*****
 
 
 
+# 十二、Servlet3.0异步请求
+
+默认情况下每一个请求都是一个单独的线程，每次请求过来都会从线程池拿取新的线程，等到请求运行完成才会把线程放回线程池
+
+如果高并发的情况会出现线程池不够用，所以Servlet3.0执行异步请求 HelloAsyncServlet.java
+
+***默认同步：***
+
+```java
+@Override
+protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    System.out.println(Thread.currentThread().getName() + "......begin....");
+    sayHello();
+    resp.getWriter().write("hello...");
+    System.out.println(Thread.currentThread().getName() + "......end....");
+}
+
+public void sayHello() {
+    System.out.println(Thread.currentThread().getName() + "......processing....");
+    try {
+        Thread.sleep(3000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
+    }
+}
+```
+
+结果：
+
+> http-nio-8080-exec-4......begin....
+> http-nio-8080-exec-4......processing....
+> http-nio-8080-exec-4......end....
 
 
 
+***使用异步请求：***
+
+***目的：***==自己新开一个线程来处理请求，使得tomcat线程池一直保持充沛状态接收其余请求。==
+
+![image-20220721143210778](.\img\image-20220721143210778.png)
+
+1. 支持异步模式，属性`asyncSupported = true`
+2. 开启异步模式
+3. 业务逻辑进行异步处理----开始异步处理
+4. 获取到asyncContext其实就是前面的asyncContext 【必须放在complete方法前】
+5. 业务逻辑异步处理完成，设定完成标记
+6. AsyncContext获取响应，并回应
+
+***代码：***
+
+```java
+package com.ly.servlet;
+
+import javax.servlet.AsyncContext;
+import javax.servlet.AsyncEvent;
+import javax.servlet.AsyncListener;
+import javax.servlet.ServletException;
+import javax.servlet.annotation.WebServlet;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * FileName:HelloAsyncServlet.class
+ * Author:ly
+ * Date:2022/7/21
+ * Description:与HelloServlet区分，是异步请求
+ */
+@WebServlet(value = "/async",asyncSupported = true)
+public class HelloAsyncServlet extends HttpServlet {
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        System.out.println(Thread.currentThread().getName() + "......begin....");
+        //1、支持异步模式，属性`asyncSupported = true`
+
+        //2、开启异步模式
+        AsyncContext asyncContext = req.startAsync();
+/*
+        asyncContext.addListener(new AsyncListener() {
+            @Override
+            public void onComplete(AsyncEvent asyncEvent) throws IOException {
+                //处理正常结束逻辑
+                System.out.println("***正常结束1");
+            }
+
+            @Override
+            public void onTimeout(AsyncEvent asyncEvent) throws IOException {
+                //处理超时逻辑
+                System.out.println("***超时2");
+            }
+
+            @Override
+            public void onError(AsyncEvent asyncEvent) throws IOException {
+                //处理出现错误时逻辑
+            }
+
+            @Override
+            public void onStartAsync(AsyncEvent asyncEvent) throws IOException {
+                //处理异步请求逻辑【异步线程逻辑】
+                System.out.println("***异步线程启动3");
+            }
+        });
+        //设置超时事件
+        asyncContext.setTimeout(10000L);
+*/
+        //3、业务逻辑进行异步处理----开始异步处理
+        asyncContext.start(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println(Thread.currentThread().getName() + "......begin....");
+                sayHello(); //异步线程调用
+
+                //5、获取到asyncContext其实就是前面的asyncContext 【必须放在complete方法前】
+                AsyncContext reqAsyncContext = req.getAsyncContext();
+                //4、业务逻辑异步处理完成，设定完成标记
+                asyncContext.complete();//表示异步处理完成
+
+                try {
+                    //6、AsyncContext获取响应，并回应
+                    reqAsyncContext.getResponse().getWriter().write("hello async");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+                System.out.println(Thread.currentThread().getName() + "......end....");
+            }
+        });
+        System.out.println(Thread.currentThread().getName() + "......end....");
+    }
+
+    public void sayHello() {
+        System.out.println(Thread.currentThread().getName() + "......processing....");
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+```
+
+***输出结果：***
+
+实际异步线程还是从tomcat线程池中获取的新线程，我们可以自己维护异步线程池，也可以使用第三方框架。
+
+> http-nio-8080-exec-9......begin....
+> http-nio-8080-exec-9......end....
+> http-nio-8080-exec-14......begin....
+> http-nio-8080-exec-14......processing....
+> http-nio-8080-exec-14......begin....
 
 
 
+***疑问：那么Servlet3.0异步请求AsyncContext和异步多线程区别？***
+
+AsyncContext不是让你异步输出，而是让你同步输出。AsyncContext只是用于缓解tomcat线程池压力，所以单独开辟一个异步线程池处理耗时请求，这样tomcat就能接受到更多地请求。
+
+# 十三、SpringMVC使用Servlet3.0的异步请求
 
 
 
+## 1、控制器返回Callable方式
+
+ 1、SpringMVC会启动异步处理，并把返回的Callable提交给一个TaskExecutor，TaskExecutor会在另外一个线程中处理
+ 2、此时DispatcherServlet和所有的过滤器Filter将会退出Servlet容器线程（就是请求线程），但是response请求会被保留下用于返回（处于open状态）
+ 3、Callable返回结果，SpringMVC将请求重新派发给Servlet容器，恢复之前的处理
+ 4、DispatcherServlet会被再次调用，并且根据Callable的返回值，SpringMVC继续执行视图渲染操作等（从头再执行的，相当于调用两次只是不再执行控制器方法了）
+
+> ----------------------执行流程-------------------------------
+>  MyInterceptor...preHandle... url-http://localhost:8080/springmvc-anno/async01
+>  primary Thread ---http-nio-8080-exec-4   start   ----->1658390762558
+>  primary Thread ---http-nio-8080-exec-4   end   ----->1658390762561
+> -------------------==1、DispatcherServlet和所有的Filter此时会退出↑   等待Callable执行↓==-------------
+>  second Thread ---MvcAsync1   start   ----->1658390762575
+>  second Thread ---MvcAsync1   end   ----->1658390765577
+> ----------------==2、Callable执行完毕并返回↑，并把返回结果再次派发出去↓==----------------------------
+>  MyInterceptor...preHandle... url-http://localhost:8080/springmvc-anno/async01
+>  MyInterceptor...postHandle...
+>  MyInterceptor...afterCompletion...
+> ---------------==3、DispatcherServlet被再次调用，接收请求↑（Callable返回值就是目标方法的返回值，所有不会再调用控制器方法了直接执行postHandle）==------------------
+> ---------------==4、渲染，response==-------------
+
+5、异步请求的拦截器（拦截Callable中的）
+
++ 可以使用Servlet3.0中==AsyncContext中原生的监听器/拦截器AsyncListener== 拦截异步请求
++ 使用==SpringMVC下的异步请求拦截器AsyncHandlerInterceptor接口==拦截异步请求
+
+***使用：***
+
+```java
+@ResponseBody
+    @RequestMapping("/async01")
+    public Callable<String> async01() {
+        System.out.println("primary Thread ---" + Thread.currentThread().getName() + "   start   =====>" + System.currentTimeMillis());
+        Callable<String> callable = new Callable<String>() {
+
+            @Override
+            public String call() throws Exception {
+                System.out.println("second Thread ---" + Thread.currentThread().getName() + "   start   =====>" + System.currentTimeMillis());
+                Thread.sleep(3000);
+                System.out.println("second Thread ---" + Thread.currentThread().getName() + "   end   =====>" + System.currentTimeMillis());
+                return "Callable<String> async01()";
+            }
+        };
+        System.out.println("primary Thread ---" + Thread.currentThread().getName() + "   end   =====>" + System.currentTimeMillis());
+
+        return callable;
+    }
+}
+```
 
 
 
+## 2、控制器方法返回 DeferredResult 
 
+实际生产情形：如创建订单
 
+![image-20220721162831354](.\img\image-20220721162831354.png)
 
+***控制器接收请求：***
 
+结果发现自己没有能力，就返回一个DeferredResult，表示当前请求需要延时处理
 
+```java
+    /**
+     * 接收到创建订单请求，但是当前方法没有权限创建订单(或者并不急于处理)，则把消息保存下来等待有权限的方法调用
+     * @return 延迟结果
+     */
+    @ResponseBody
+    @RequestMapping("/createOrder")
+    public DeferredResult<Object> createOrder() {
+        //设置超时信息
+        DeferredResult<Object> deferredResult = new DeferredResult<>(30000L,"timeout,order create failed!");
+        //将创建订单信息抛出
+        DeferredResultQueue.save(deferredResult);
+        return deferredResult;
+    }
+```
 
+***web中有监听器，监听创建订单的延迟事件（我们手动模拟为请求响应）***
 
+创建订单，并返回延迟结果
 
+```java
+@ResponseBody
+//真正创建订单后触发，返回订单信息
+@RequestMapping("/create")
+public String create() {
+    //创建订单
+    String order = UUID.randomUUID().toString();
+    DeferredResult<Object> deferredResult = DeferredResultQueue.get();
+    deferredResult.setResult(order);
+    return "success ===>" + order;
+}
+```
 
+***消息队列：***
 
+存放需要延时处理的消息
 
+```java
+public class DeferredResultQueue {
 
+    private static Queue<DeferredResult<Object>> deferredResultQueue = new ConcurrentLinkedDeque<>();
 
+    public static void save(DeferredResult<Object> deferredResult) {
+        deferredResultQueue.add(deferredResult);
+    }
 
-
-
-
-
-
-
-
-
-
-
-
+    public static DeferredResult<Object> get() {
+        return deferredResultQueue.poll();
+    }
+}
+```
 
 
 
