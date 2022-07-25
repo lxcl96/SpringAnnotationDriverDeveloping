@@ -24,11 +24,11 @@ public class Boss {
     //@Autowired
     private Car car;
 
-    public Boss() {
-    }
+//    public Boss() {
+//    }
 
-    @Autowired
-    public Boss(@Autowired Car car) {
+    ///@Autowired
+    public Boss(Car car) {
         System.out.println("只有有参构造器，但是设置了自动注入，所以不会报错！");
         this.car = car;
     }

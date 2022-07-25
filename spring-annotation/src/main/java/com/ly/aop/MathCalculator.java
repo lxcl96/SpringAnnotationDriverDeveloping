@@ -8,6 +8,8 @@ package com.ly.aop;
  */
 public class MathCalculator {
     public int div(int i,int j) {
+
+        System.out.println(String.format("i=%d，j=%d",i,j));
         return i/j;
     }
 }

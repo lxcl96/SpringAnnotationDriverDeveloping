@@ -1353,7 +1353,7 @@ public class BeanValidationPostProcessor implements BeanPostProcessor, Initializ
 }
 ```
 
-***3、处理方法III中@PostConstruct初始化和@PreDestroy销毁注解***
+***3、实现处理方法III中@PostConstruct初始化和@PreDestroy销毁注解***
 
 通过前/后置处理器，调用 注解
 
@@ -1526,7 +1526,7 @@ public @interface Autowired {
 
   > `@Autowire`注解完成自动装配的底层代码就是`AutowiredAnnotationBeanPostProcessor.java`代码，不难看出这又是PostProcessor后置处理器。
 
-## 11、@Qualifier 需要代培@Autowire使用
+## 11、@Qualifier 需要搭配@Autowire使用
 
 ***@Qualifier源码：***
 
@@ -1704,10 +1704,7 @@ public class Boss {
     //@Autowired
     private Car car;
 	
-    public Boss() {
-    }
-    
-    //如果只有一个有参构造器，则@Autowire可以省略
+    //如果只有一个有参构造器【且不能有无参构造器】，则@Autowire可以省略
     @Autowired//也可以直接标在形参上，二者选其一（都标不报错）
     public Boss(@Autowired Car car) {
         System.out.println("只有有参构造器，但是设置了自动注入，所以不会报错！");
@@ -1733,9 +1730,6 @@ public class Boss {
 
     //@Autowired
     private Car car;
-
-    public Boss() {
-    }
 
     @Autowired//两个位置都标记不报错
     public Boss(@Autowired Car car) {
@@ -1773,7 +1767,7 @@ public class Color {
 
 ，但是Color是通过配置类中，@Bean方法的（那么此时怎么注入car呢？）
 
-> 这种情况其实就是有 唯一构造器 的情形
+> 这种情况其实@Bean附带的（一样的步骤：先根据类型，如果类型重复再根据名字car）
 
 ```java
   @Bean("color")//@Autowire可以不写
@@ -1908,7 +1902,8 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
         dataSource.setDriverClass(driver);
         dataSource.setJdbcUrl(url);
         dataSource.setUser(valueResolver.resolveStringValue("${dev.user}"));
-        dataSource.setPassword("{dev.password}");
+        //${test.driver} 必须搭配@Value注解或者 EmbeddedValueResolverAware 值解析器才能使用
+        dataSource.setPassword("${dev.password}");
         return dataSource;
     }
 
@@ -1917,6 +1912,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
     public DataSource getTestDataSource() throws PropertyVetoException {
 
         ComboPooledDataSource dataSource = new ComboPooledDataSource();
+        //${test.driver} 必须搭配@Value注解或者 EmbeddedValueResolverAware 值解析器才能使用 一下均会保错
         dataSource.setDriverClass("${test.driver}");
         dataSource.setJdbcUrl("${test.url}");
         dataSource.setUser("${test.user}");
@@ -1967,7 +1963,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
 
 + `-Dspring.profiles.active=developing`
 
-+ ``-Dspring.profiles.active=test`
++ `-Dspring.profiles.active=test`
 
 ***IDEA启动时添加VM参数：***
 
@@ -2006,7 +2002,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
 @Test
 public void testProfileByCode(){
     AnnotationConfigApplicationContext applicationContext = new AnnotationConfigApplicationContext();
-    //设置profile环境，必须注册前指定
+    //设置profile环境，必须注册前指定 【多参数执行运行环境】
     applicationContext.getEnvironment().setActiveProfiles("developing","testing");
     //遵循有参构造器的代码
     applicationContext.register(MainConfigurationOfProfile.class);
@@ -2100,7 +2096,6 @@ AOP底层原理：动态代理
    
        //目标方法运行前切入，需要制定切入点表达式
        @Before("execution(public int com.ly.aop.MathCalculator.div(int,int))")
-       //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
        public void logStart(JoinPoint joinPoint) {
    //        System.out.println(joinPoint.getKind());//method-execution
    //        System.out.println(joinPoint.getSignature());//获取签名int com.ly.aop.MathCalculator.div(int,int)
@@ -2129,6 +2124,7 @@ AOP底层原理：动态代理
    //*****************切入点表达式调用函数的不用写execution了
        @AfterReturning(value = "pointCut()",returning = "ret")
        //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
+       //JoinPoint 参数一定要放在第一位
        public void logReturn(JoinPoint joinPoint,Object ret) {
            System.out.println(joinPoint.getSignature().getName() + "正常返回。。。运行结果：{" + ret + "}");
        }
@@ -2139,11 +2135,19 @@ AOP底层原理：动态代理
        public void logException(JoinPoint joinPoint,Exception exception) {
            System.out.println(joinPoint.getSignature().getName() + "运行异常。。。异常信息：{}");
        }
+       
+           @Around(value = "pointCut()")//环绕通知必须有返回值，且为原方法的返回值
+       public Object logAround(ProceedingJoinPoint pjp) throws Throwable {
+           System.out.println("我是环绕通知1");
+           Object proceed = pjp.proceed();//这个返回值就是原方法的返回值
+           System.out.println("我是环绕通知2");
+           return proceed;
+       }
    }
    
    ```
 
-5. 将切面类和业务逻辑类（目标方法所在类）都加入到容器中
+5. 将切面类和业务逻辑类（目标方法所在类）都加入到容器中 【==切面类也必须要手动加入==】
 
    ```java
    package com.ly.config;
@@ -2279,7 +2283,7 @@ public @interface EnableAspectJAutoProxy {
 
 > ***`@Import(AspectJAutoProxyRegistrar.class)`的部分源码：***
 >
-> 第一步：注册``org.springframework.aop.config.internalAutoProxyCreator`
+> 第一步：注册`org.springframework.aop.config.internalAutoProxyCreator`
 >
 > ```java
 > public void registerBeanDefinitions(
@@ -2291,25 +2295,25 @@ public @interface EnableAspectJAutoProxy {
 > //顺序2
 > @Nullable
 > public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
->   return registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry, (Object)null);
+> return registerAspectJAnnotationAutoProxyCreatorIfNecessary(registry, (Object)null);
 > }
 > //顺序3
 > @Nullable
 > public static BeanDefinition registerAspectJAnnotationAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry, @Nullable Object source) {
->   return registerOrEscalateApcAsRequired(AnnotationAwareAspectJAutoProxyCreator.class, registry, source);
+> return registerOrEscalateApcAsRequired(AnnotationAwareAspectJAutoProxyCreator.class, registry, source);
 > }
 > 
 > //顺序4  注册 AnnotationAwareAspectJAutoProxyCreator（即启用AOP编程）
 > private static BeanDefinition registerOrEscalateApcAsRequired(Class<?> cls, BeanDefinitionRegistry registry, @Nullable Object source) {
 > 	...
 > } else {
->       RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
->       beanDefinition.setSource(source);
->       beanDefinition.getPropertyValues().add("order", -2147483648);
->       beanDefinition.setRole(2);
->       registry.registerBeanDefinition("org.springframework.aop.config.internalAutoProxyCreator", beanDefinition);
->       return beanDefinition;
->   }
+>    RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
+>    beanDefinition.setSource(source);
+>    beanDefinition.getPropertyValues().add("order", -2147483648);
+>    beanDefinition.setRole(2);
+>    registry.registerBeanDefinition("org.springframework.aop.config.internalAutoProxyCreator", beanDefinition);
+>    return beanDefinition;
+> }
 > }
 > ```
 > ***第一步作用：给IOC容器注入AnnotationAwareAspectJAutoProxyCreator组件***
@@ -2404,7 +2408,7 @@ public @interface EnableAspectJAutoProxy {
 > 								bean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
 > 							}
 >  * 
->  * 					2）、doCreateBean(beanName, mbdToUse, args);真正的去创建一个bean实例；和3.6流程一样；
+>      * 					2）、doCreateBean(beanName, mbdToUse, args);真正的去创建一个bean实例；和3.6流程一样；
 >  * 					3）、
 >  * 			
 >  * 		
@@ -2462,25 +2466,25 @@ public @interface EnableAspectJAutoProxy {
 >  * 			2)、链式获取每一个拦截器，拦截器执行invoke方法，每一个拦截器等待下一个拦截器执行完成返回以后再来执行；
 >  * 				拦截器链的机制，保证通知方法与目标方法的执行顺序；
 >  * 		
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
->  
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
+> 
 >  * 	总结：
 >  * 		1）、  @EnableAspectJAutoProxy 开启AOP功能
 >  * 		2）、 @EnableAspectJAutoProxy 会给容器中注册一个组件 AnnotationAwareAspectJAutoProxyCreator
@@ -2497,14 +2501,23 @@ public @interface EnableAspectJAutoProxy {
 >  * 			2）、CglibAopProxy.intercept()；
 >  * 				1）、得到目标方法的拦截器链（增强器包装成拦截器MethodInterceptor）
 >  * 				2）、利用拦截器的链式机制，依次进入每一个拦截器进行执行；
->  * 				3）、效果：
->  * 					正常执行：前置通知-》目标方法-》后置通知-》返回通知
->  * 					出现异常：前置通知-》目标方法-》后置通知-》异常通知
->  * 		
+>  * 				3）、效果：（看5大通知的顺序，是栈）	
+>  * 					正常执行：前置通知-》目标方法-》返回通知-》后置通知
+>  * 					出现异常：前置通知-》目标方法-》异常通知-》后置通知
 >  */
 > ```
 >
-> 
+> ***压栈、出栈顺序：***
+>
+> | 正常执行顺序 | 通知拦截器(包含Spring和AspectJ)         | 含义         | 异常执行熟悉呢              |
+> | ------------ | --------------------------------------- | ------------ | --------------------------- |
+> | 3            | `invokeJoinpoint() `                    | 调用原本方法 | 3                           |
+> | 4            | `AspectJAfterThrowingAdvice.class`      | 异常通知     | 4                           |
+> | 5            | `AfterReturningAdviceInterceptor.class` | 返回通知     |                             |
+> | 6            | `AspectJAfterAdvice.class`              | 后置通知     | 5                           |
+> | 2            | `MethodBeforeAdviceInterceptor.class`   | 前置通知     | 2                           |
+> | 1/7          | `AspectJAroundAdvice`                   | 环绕通知     | 1/6（需要自己捕获才会执行） |
+> | 0            | `ExposeInvocationInterceptor.class`     | 暴露拦截器   | 0                           |
 
 # 七：@Transactional 事务管理
 
@@ -2678,20 +2691,20 @@ public @interface EnableTransactionManagement {
 >      }
 >   }
 >   ...
->         
+>           
 >    /*
 >    	下面就是AOP原理的过程：即利用后置处理器在对象创建后，包装对象，返回一个代理对象（增强类），代理对象执行方法利用拦截器链进行调用事务方法
 >    	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(BeanDefinitionRegistry registry) {
 >   		return registerAutoProxyCreatorIfNecessary(registry, null);
 >   	}
->         
+>           
 >   	@Nullable
 >   	public static BeanDefinition registerAutoProxyCreatorIfNecessary(
 >   			BeanDefinitionRegistry registry, @Nullable Object source) {
 >   		return registerOrEscalateApcAsRequired(InfrastructureAdvisorAutoProxyCreator.class, registry, source);
 >   	}
->         
+>           
 >   	找出关键类：给IOC容器中注册一个组件InfrastructureAdvisorAutoProxyCreator
 >   	...
 >    */
@@ -2708,7 +2721,7 @@ public @interface EnableTransactionManagement {
 >   ```java
 >   //设置事务属性，主要是设置事务注解解析器new SpringTransactionAnnotationParser()
 >   advisor.setTransactionAttributeSource(transactionAttributeSource);
->         
+>           
 >   //SpringTransactionAnnotationParser.class只要用于解析注解 @Transactional的属性，value,transactionManager...等等所有
 >   public @interface Transactional {
 >   	@AliasFor("transactionManager")
@@ -2725,7 +2738,7 @@ public @interface EnableTransactionManagement {
 >   	String[] rollbackForClassName() default {};
 >   	Class<? extends Throwable>[] noRollbackFor() default {};
 >   	String[] noRollbackForClassName() default {};
->         
+>           
 >   }
 >   ```
 >   
@@ -2734,7 +2747,7 @@ public @interface EnableTransactionManagement {
 >     ```Java
 >     //设置事务/通知拦截器用于执行,开启事务的方法的事务AOP
 >     advisor.setAdvice(transactionInterceptor);
->                 
+>                     
 >     //创建TransactionInterceptor
 >     //调用器TransactionInterceptor.invoke方法
 >     //然后调用return invokeWithinTransaction(...) 最终要的方法
@@ -2752,12 +2765,12 @@ public @interface EnableTransactionManagement {
 >     //事务拦截器：
 >     //1）、先获取事务相关的属性
 >     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
->                 
+>                     
 >     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
 >     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
->                 
+>                     
 >     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
->                 
+>                     
 >         try {
 >             //尝试调用 加上@Transactional 的Service层方法
 >             retVal = invocation.proceedWithInvocation();

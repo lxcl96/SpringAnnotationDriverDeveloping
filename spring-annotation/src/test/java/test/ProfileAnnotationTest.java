@@ -5,6 +5,9 @@ import org.junit.Test;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+
 /**
  * FileName:ProfileAnnotationTest.class
  * Author:ly
@@ -44,6 +47,16 @@ public class ProfileAnnotationTest {
         //遵循有参构造器的代码
         applicationContext.register(MainConfigurationOfProfile.class);
         applicationContext.refresh();
+
+
+        DataSource test = applicationContext.getBean("test", DataSource.class);
+        try {
+            Connection connection = test.getConnection();
+            System.out.println(connection);
+            connection.close();
+        } catch (Exception e) {
+
+        }
 
         String[] names = applicationContext.getBeanDefinitionNames();
         for (String name : names) {

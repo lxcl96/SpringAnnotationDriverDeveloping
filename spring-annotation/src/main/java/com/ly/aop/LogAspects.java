@@ -1,6 +1,7 @@
 package com.ly.aop;
 
 import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 
 import java.util.Arrays;
@@ -60,5 +61,18 @@ public class LogAspects {
     //给定形参，并在注解中指定（名字必须一样）IOC容器会自动注入
     public void logException(JoinPoint joinPoint,Exception exception) {
         System.out.println(joinPoint.getSignature().getName() + "运行异常。。。异常信息：{" + exception + "}");
+    }
+
+    @Around(value = "pointCut()")
+    public Object logAround(ProceedingJoinPoint pjp) throws Throwable {
+        Object proceed = null;
+        System.out.println("我是环绕通知1");
+        try {
+            proceed = pjp.proceed();
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+        System.out.println("我是环绕通知2");
+        return proceed;
     }
 }

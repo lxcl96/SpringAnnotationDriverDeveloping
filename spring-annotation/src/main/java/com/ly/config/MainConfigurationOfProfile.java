@@ -55,7 +55,7 @@ public class MainConfigurationOfProfile implements EmbeddedValueResolverAware {
     @Profile("testing")
     @Bean("test")
     public DataSource getTestDataSource() throws PropertyVetoException {
-
+        //${test.driver} 必须搭配@Value注解或者 EmbeddedValueResolverAware 值解析器才能使用
         ComboPooledDataSource dataSource = new ComboPooledDataSource();
         dataSource.setDriverClass("${test.driver}");
         dataSource.setJdbcUrl("${test.url}");

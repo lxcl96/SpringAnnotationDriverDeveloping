@@ -16,7 +16,7 @@ public class Car {
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
 
     public Car() {
-        System.out.println(dateFormat.format(new Date()) + " 一个car对象被创建");
+        System.out.println(dateFormat.format(new Date()) + " 一个car对象被创建" + this);
     }
 
 
