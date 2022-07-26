@@ -2521,7 +2521,7 @@ public @interface EnableAspectJAutoProxy {
 
 # 七：@Transactional 事务管理
 
-## 1、配置``@Transactional`开启事务管理
+## 1、配置`@Transactional`开启事务管理
 
 声明式事务：Spring事务注解（底层AOP原理）
 
@@ -2751,44 +2751,42 @@ public @interface EnableTransactionManagement {
 >     //创建TransactionInterceptor
 >     //调用器TransactionInterceptor.invoke方法
 >     //然后调用return invokeWithinTransaction(...) 最终要的方法
->     	//invokeWithinTransaction里面匿名内部类就是调用CglibAopProxy.proceed()方法,然后就是和AOP的通知排序一样,调用链执行proceed方法
+>     //invokeWithinTransaction里面匿名内部类就是调用CglibAopProxy.proceed()方法,然后就是和AOP的通知排序一样,调用链执行proceed方法
 >     
->     
->     ```
->   
->   + 调用事务方法 
->   
->     ```java
+>       + 调用事务方法 
+> 
+>       ```java
 >     invokeWithinTransaction(...)
->     
->     
+>   
+> 
+> ```java
 >     //事务拦截器：
 >     //1）、先获取事务相关的属性
->     		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
->                     
->     //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
->     PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
->                     
->     //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
->                     
->         try {
->             //尝试调用 加上@Transactional 的Service层方法
->             retVal = invocation.proceedWithInvocation();
->         }
->     catch (Throwable ex) {
->         //出现异常,执行异常通知
->         completeTransactionAfterThrowing(txInfo, ex);
->         throw ex;
+> 		final TransactionAttribute txAttr = (tas != null ? tas.getTransactionAttribute(method, targetClass) : null);
+> 
+> //2）、再获取PlatformTransactionManager，如果事先没有添加指定任何transactionmanger最终会从容器中按照类型获取一个PlatformTransactionManager；【就是DataSourceTransactionManager，即给jdbctemplate和mybatis的父接口,也就是自己注册到IOC容器中的事务管理器】
+>                 PlatformTransactionManager ptm = asPlatformTransactionManager(tm);
+> 
+> //3）、执行目标方法如果异常，获取到事务管理器，利用事务管理回滚操作；如果正常，利用事务管理器，提交事务  
+>                 
+>     try {
+>                         //尝试调用 加上@Transactional 的Service层方法
+>         retVal = invocation.proceedWithInvocation();
 >     }
->     finally {
->         //最后情况事务信息
->         cleanupTransactionInfo(txInfo);
->     }
->     ...
->     //正确执行就提交事务
->     commitTransactionAfterReturning(txInfo);
->     return retVal;
->     ```
+> catch (Throwable ex) {
+>     //出现异常,执行异常通知
+>     completeTransactionAfterThrowing(txInfo, ex);
+>     throw ex;
+> }
+> finally {
+>     //最后情况事务信息
+>     cleanupTransactionInfo(txInfo);
+> }
+> ...
+> //正确执行就提交事务
+> commitTransactionAfterReturning(txInfo);
+> return retVal;
+> ```
 
 # 八、Spring扩展原理
 
@@ -2797,11 +2795,11 @@ public @interface EnableTransactionManagement {
 ***时刻谨记BeanFactory和ApplicationContext的区别：***
 
 + BeanFactory只有在需要时，才会真正创建bean（如：调用getBean方法）。否则IOC容器中只是存放这些bean的定义
-+ ApplicationContext在IOC容器创建后自动创建好所有被扫描的bean，放在IOC容器中，每次调用（如：getBean方法），直接从IOC容器中取，而不是再创建。
++ ApplicationContext在IOC容器创建后自动创建好所有被扫描的bean（singleton），放在IOC容器中，每次调用（如：getBean方法），直接从IOC容器中取，而不是再创建。
 
-==beanFactory的后置处理器，在bean标准初始化后调用（此时所有bean定义已经被加载到IOC容器中，但是并没有任何bean被实例化）==
+==beanFactory的后置处理器，在bean工厂这个对象标准初始化后调用（此时所有bean定义已经被加载到IOC容器中，但是并没有任何bean被实例化）==
 
-> [区别BeanFactoryPostProcessor bean的后置处理器，在bean被创建，及初始化前后拦截调用的]
+> [区别BeanFactoryPostProcessor bean的后置处理器，在bean工厂这个bean被创建，及初始化前后拦截调用的]
 
 ***配置类ExtConfig.class***
 
@@ -2992,7 +2990,7 @@ public class MyApplicationListener implements ApplicationListener<ApplicationEve
 
 源码分析：
 
-***不难看出，IOC容器通过`publishEvent(ApplicationEvent event)`进行事件发布。至于具体是什么事件，参数可以自己定义
+***不难看出，IOC容器通过`publishEvent(ApplicationEvent event)`进行事件发布。至于具体是什么事件，参数可以自己定义***
 
 > IOC容器刷新完成事件:
 >
@@ -3041,8 +3039,6 @@ public class MyApplicationListener implements ApplicationListener<ApplicationEve
 >      }
 >   }
 >   ```
->
-> + 
 
 ## 3+、事件开发（通过IOC自己发布事件）
 
@@ -3133,7 +3129,7 @@ public class MyApplicationListener implements ApplicationListener<ApplicationEve
 
 ==***标注在方法上，表示该方法会监听到指定事件（因为是监听器所以会比较先加载）***==
 
-***源码：***
+***@EventListener源码：***
 
 ```java
 @Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
@@ -3195,7 +3191,7 @@ public class UserService {
   > //找到EventListenerFactory 名字为“internalEventListenerFactory”记录下来
   >    refresh()->invokeBeanFactoryPostProcessors(..)->..postProcessBeanFactory()
   >         
-  > //在IOC所有bean被创建完成后，使用上面记录的EventListenerFactory将注解@EventListener转化成ApplicationListener，并注册到IOC容器中
+  > //在IOC所有bean工厂被创建完成后，使用上面记录的EventListenerFactory将注解@EventListener转化成ApplicationListener，并注册到IOC容器中
   >    refresh()->finishBeanFactoryInitialization(..)->..afterSingletonsInstantiated()
   >        applicationListener =
   > 				factory.createApplicationListener(beanName, targetType, methodToUse);
@@ -3351,16 +3347,17 @@ public class MyServletContainerInitializer implements ServletContainerInitialize
       @Override
       public void contextInitialized(ServletContextEvent servletContextEvent) {
           System.out.println("UserListener...ServletContextListener...initial");
-      }
-  
-      @Override
-      public void contextDestroyed(ServletContextEvent servletContextEvent) {
           //初始化时添加第三方组件
           ServletContext servletContext = servletContextEvent.getServletContext();
           servletContext.addServlet();
           servletContext.addFilter();
           servletContext.addListener();
           System.out.println("UserListener...ServletContextListener...destroy");
+      }
+  
+      @Override
+      public void contextDestroyed(ServletContextEvent servletContextEvent) {
+          
       }
   }
   ```
@@ -3408,7 +3405,7 @@ public class MyServletContainerInitializer implements ServletContainerInitialize
   > + 实现`getServletConfigClasses()`方法，将SpringMVC配置类加入到web容器中（子容器）
   > + 调用父类们的其他方法，用来配置`Listener,Servlet,Filter`等等
 
-***具体步骤见文件：springmvc-annotation*****
+***具体步骤见文件：springmvc-annotation***
 
 
 
@@ -3453,7 +3450,7 @@ public void sayHello() {
 
 ![image-20220721143210778](.\img\image-20220721143210778.png)
 
-1. 支持异步模式，属性`asyncSupported = true`
+1. 支持异步模式，`@WebServlet`属性`asyncSupported = true`
 2. 开启异步模式
 3. 业务逻辑进行异步处理----开始异步处理
 4. 获取到asyncContext其实就是前面的asyncContext 【必须放在complete方法前】
@@ -3596,7 +3593,7 @@ AsyncContext不是让你异步输出，而是让你同步输出。AsyncContext�
 > ---------------==3、DispatcherServlet被再次调用，接收请求↑（Callable返回值就是目标方法的返回值，所有不会再调用控制器方法了直接执行postHandle）==------------------
 > ---------------==4、渲染，response==-------------
 
-5、异步请求的拦截器（拦截Callable中的）
+5、异步请求的拦截器（拦截Callable中的，和开启线程不是一个线程的，所以别的拦截器就失效了）
 
 + 可以使用Servlet3.0中==AsyncContext中原生的监听器/拦截器AsyncListener== 拦截异步请求
 + 使用==SpringMVC下的异步请求拦截器AsyncHandlerInterceptor接口==拦截异步请求

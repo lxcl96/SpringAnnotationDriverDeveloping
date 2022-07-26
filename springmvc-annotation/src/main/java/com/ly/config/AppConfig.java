@@ -51,9 +51,7 @@ public class AppConfig extends WebMvcConfigurerAdapter {
 
     @Override
     //配置路径映射规则
-    public void configurePathMatch(PathMatchConfigurer configurer) {
-
-    }
+    public void configurePathMatch(PathMatchConfigurer configurer) {}
 
     @Override
     public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
